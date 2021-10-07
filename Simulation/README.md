@@ -6,3 +6,6 @@ Script to explore the influence of key parameters such as speciation and extinct
 
 `simContTraits.R`
 This simulates continuous traits along a phylogeny according to Brownian motion. 
+
+`SimData.R`
+This simulates continuous, discrete traits along a phylogeny according to several models as Brownian motion, OU and MK.
