@@ -170,7 +170,7 @@ simAlpha <- function(Ntraits, alpha = NULL) {
 simDiscreteTraits <- function(Ntraits, Nstates, rate_model, max_rate, tree, equal = TRUE, Ordinal = FALSE){
   
   if(rate_model != "ER" & rate_model != "SYM" & rate_model != "ARD"){
-    stop("The rate model should one of the following: ER, SYM or ARD")
+    stop("The rate model should be one of the following: ER, SYM or ARD")
   }
   
   if(length(rate_model) != 1 && length(rate_model) != Ntraits){
@@ -217,31 +217,44 @@ simDiscreteTraits(4, c(2,3,3,4), "ER" ,0.9, SimTree, equal = F, Ordinal = F)
 # Simulate correlated discrete traits with continuous traits
 ############################################################
 
-ConvertContinousInDiscreteValues <- function(values, Nstates, intervals = TRUE){
+ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
   #made 2 replacement to don't create an extra matrix
   # values: vector of values
   # Nstates: number of states of the defined traits (could be a vector or a value)
-  # intervals: boolean arguments, if TRUE want ordered states (0, 1, 2)if FALSE, means unordered (2,0,1).
-  #          if TRUE intervals are fairly split, if FALSE intervals are unfairly split. 
+  # subclass:
+  # - intervals: states are fairly split
+  # - ordinal: ordered states, split is random
+  # - nominal: split is random, no order (shuffled)
   # return a vector of discrete value corresponding of continuous value in a same interval.
   
+  if(subclass != "nominal" & subclass != "ordinal" & subclass != "interval"){
+    stop("The subclass should be one of the following: nominal, ordinal or interval")
+  }
+  
+  if(subclass == "interval"){
   #Define the thresholds in case it's ordered
   breaks <- seq(min(values), max(values), length.out = Nstates + 1)
-  result <- as.character(findInterval(values, breaks[-c(1, length(breaks))]))
-
-  if(!intervals){
+  conversion <- as.character(findInterval(values, breaks[-c(1, length(breaks))]))
+  }
+  
+  if(subclass == "ordinal"){
     breaks <- runif((Nstates - 1), min(values), max(values))
-    ordered_values <- findInterval(values, sort(breaks))
+    conversion <- as.character(findInterval(values, sort(breaks)))
+  }
+  
+  if(subclass == "nominal"){
+    breaks <- runif((Nstates - 1), min(values), max(values))
+    nominal_values <- findInterval(values, sort(breaks))
     shuffle <- sample(0:(Nstates-1), Nstates, replace = FALSE)
-    result <- as.character(1:length(ordered_values)) # vector with shuffling 
+    conversion <- as.character(1:length(ordered_values)) # vector with shuffling 
     for (i in 1:length(unique(ordered_values))){
-      result[ordered_values == unique(ordered_values)[i]] <- shuffle[i]
+      conversion[ordered_values == unique(ordered_values)[i]] <- shuffle[i]
     }
   }
-  return(result)
+  return(conversion)
 }
 
-ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, intervals){
+ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subclass){
   # apply the function below to the columns of a matrix which is converted in a dataframe.
   # intervals could be a scalar or a vector of boolean.
   # return a dataframe
@@ -254,34 +267,31 @@ ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, inter
     Nstates <- rep(Nstates, length(columnsIndex))
   }
 
-  if(length(intervals) == 1){
-    intervals <- rep(intervals, length(columnsIndex))
+  if(length(subclass) == 1){
+    subclass <- rep(subclass, length(columnsIndex))
   }
   
   #convert matrix in dataframe
   dataframe <- as.data.frame(Matrix)
   
   for(ci in 1:length(columnsIndex)) {
-    #print(ConvertContinousInDiscreteValues(matrix[, columnsIndex[ci]], Nstates[ci], intervals[ci]))
-    dataframe[, columnsIndex[ci]] <- ConvertContinousInDiscreteValues(dataframe[, columnsIndex[ci]], Nstates[ci], intervals[ci])
+    dataframe[, columnsIndex[ci]] <- ConvertContinousInDiscreteValues(dataframe[, columnsIndex[ci]], Nstates[ci], subclass[ci])
   }
   return(dataframe)
 }
-ContinuousData[,9]<- ConvertContinousInDiscreteValues(ContinuousData[, indexZero[1]], Nstates[1], intervals[1])
-ChangeContinuousTraitInDiscrete(ContinuousData, indexZero, Nstates, intervals)
 
 # Scaled continuous traits
 #########################
 #Scale traits between 0 and 10 
 #(https://github.com/GitTFJ/Handling-missing-values-in-trait-data/blob/main/Script1_SimulateData_V1.0.R)
-rangeScale <- function(x, range){((x-min(x))/(max(x)-min(x))*range)} #? changer on doit pouvoir d?finir un range pour chaque trait qui est diff?rent!!!!!
+rangeScale <- function(x, range){((x-min(x))/(max(x)-min(x))*range)}
 ScaledTraits <- apply(ContinuousData$data, MARGIN = 2, rangeScale, 10)
 ScaledTraits <- as.data.frame(ScaledTraits)
 ScaledTraits
 
 
-#as first argument, list(Birth, Death, Ntaxa) and second arguments is a dataframe.
-simData <- function(list, dataframe){
+#as first argument, list(Birth, Death, Ntaxa), second arguments is a dataframe, third argument save in rds format
+simData <- function(list, dataframe, save = TRUE){
   
   if(dim(dataframe)[2] != 8){
     stop("The number of columns should be equal to 8.")
@@ -291,7 +301,7 @@ simData <- function(list, dataframe){
   ################################
   newNames <-  c("nbr_traits", "class", "subclass", "model", "states", "correlation", "uncorr_traits", "fraction_uncorr_traits")
   names(dataframe) <- newNames
-  #in subclass there are, continuous, ordinal, interval(same quantity), nominative(no order).
+  #in subclass there are, continuous, ordinal, interval(same quantity), nominal(no order).
   # uncorr_traits >= 0, 0<x<=1 fraction of uncovariant traits, number of uncorrelated should be >=1. 
 
   
@@ -306,13 +316,12 @@ simData <- function(list, dataframe){
   #####################
   
   #Homogenize the names
-  
   dataframe$class[str_detect(dataframe$class, "^[cC]")] <- "continuous" #every class have the same name
   dataframe$class[str_detect(dataframe$class, "^[dD]")] <- "discrete"
   dataframe$subclass[str_detect(dataframe$subclass, "^[cC]")] <- "continuous"
   dataframe$subclass[str_detect(dataframe$subclass, "^[oO]")] <- "ordinal"
   dataframe$subclass[str_detect(dataframe$subclass, "^[iI]")] <- "interval"
-  dataframe$subclass[str_detect(dataframe$subclass, "^[nN]")] <- "nominative"
+  dataframe$subclass[str_detect(dataframe$subclass, "^[nN]")] <- "nominal"
   dataframe$model[str_detect(dataframe$model, "^[bB]")] <- "BM1"
   dataframe$model[str_detect(dataframe$model, "^[oO]")] <- "OU1"
   dataframe$model[str_detect(dataframe$model, "^[eE]")] <- "ER"
@@ -330,13 +339,12 @@ simData <- function(list, dataframe){
   }
   
   wrong <- which(dataframe$class == "discrete" & (dataframe$subclass == "ordinal" | 
-                                                    dataframe$subclass == "interval" | dataframe$subclass == "nominative") &
+                                                    dataframe$subclass == "interval" | dataframe$subclass == "nominal") &
                    (dataframe$model == "ER" | dataframe$model == "SYM" | dataframe$model == "ARG") & dataframe$states <= 1)
   if(length(wrong) != 0){
     stop(paste("This line ", wrong, "is not filled correctly \n"))
   }
   
-
   # Simulate phylogeny
   ####################
   birth = list[[1]]
@@ -441,16 +449,10 @@ simData <- function(list, dataframe){
      
       if(!is.null(indexZero)){ #mean that there is some discrete correlated data
         Nstates <- rep(subdata$states[subdata$states > 1], subdata$nbr_traits[subdata$states > 1])
-        intervals <- c()
         discreteSubdata <- subset(subdata, subdata$class == "discrete")
-        for(j in 1:nrow(discreteSubdata)){
-          if(discreteSubdata$subclass[j] == "interval"){intervals <- c(intervals,rep(as.logical(TRUE), discreteSubdata$nbr_traits[j]))}
-          else{intervals <- c(intervals,rep(as.logical(FALSE),discreteSubdata$nbr_traits[j]))}
-        }
-        DiscreteData <- ChangeContinuousTraitInDiscrete(ContinuousData, indexZero, Nstates, intervals)
-        Nstates
-        indexZero
-        intervals
+        subclass <- rep(discreteSubdata$subclass, discreteSubdata$nbr_traits)
+        DiscreteData <- ChangeContinuousTraitInDiscrete(ContinuousData, indexZero, Nstates, subclass)
+
         #change columns names
         DiscreteData <- as.data.frame(DiscreteData)
         colnames(DiscreteData) <- sprintf("T%s.%s", seq(1:sum(subdata$nbr_traits)), i)
@@ -472,7 +474,9 @@ simData <- function(list, dataframe){
   
   #Save data
   ##########
-  #save(Data, file="simulatedData.RData")
+  if(save){
+  save(FinalData, file="simulatedData.rds")
+  }
   
   return(FinalData)
     
@@ -481,6 +485,5 @@ simData <- function(list, dataframe){
 data <- read.csv("DataTest.csv", header = TRUE, sep = ";")
 data
 tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 30)
-list <- list(Birth = 0.4, Death = 0.1, Ntaxa = 30)
-new_data <- simData(tree_arg, data)
+new_data <- simData(tree_arg, data, save = TRUE)
 new_data
