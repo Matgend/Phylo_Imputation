@@ -361,7 +361,6 @@ simData <- function(list, dataframe){
   #Final matrix
   FinalData <- as.data.frame(matrix(0, nrow = length(SimTree$tip.label), ncol = 0))
   max_rate <- 0.6
-  
   for(i in correlation_values){
     #build a subset of traits being correlated together
     subdata <- subset(dataframe, dataframe$correlation == i)
@@ -370,11 +369,9 @@ simData <- function(list, dataframe){
       Sigmas <- simSigma(subdata$nbr_traits, uncovTraits = subdata$uncorr_traits, FracNocov = subdata$fraction_uncorr_traits)
       Thetas <- runif(subdata$nbr_traits, min = -10, max = 10)
       Alphas <- simAlpha(subdata$nbr_traits)
-      print("hello")
       if(subdata$class == "continuous"){
         if(subdata$model == "BM1"){
           Alphas <- simAlpha(subdata$nbr_traits, alpha = 1e-5 * log(2))
-          print("hi")
         }
         #simulate independent continuous traits
         ContinuousData <- mvSIM(tree = SimTree,
@@ -446,9 +443,9 @@ simData <- function(list, dataframe){
         Nstates <- rep(subdata$states[subdata$states > 1], subdata$nbr_traits[subdata$states > 1])
         intervals <- c()
         discreteSubdata <- subset(subdata, subdata$class == "discrete")
-        for(i in 1:nrow(discreteSubdata)){
-          if(discreteSubdata$subclass[i] == "interval"){intervals <- c(intervals,rep(as.logical(TRUE), discreteSubdata$nbr_traits[i]))}
-          else{intervals <- c(intervals,rep(as.logical(FALSE),discreteSubdata$nbr_traits[i]))}
+        for(j in 1:nrow(discreteSubdata)){
+          if(discreteSubdata$subclass[j] == "interval"){intervals <- c(intervals,rep(as.logical(TRUE), discreteSubdata$nbr_traits[j]))}
+          else{intervals <- c(intervals,rep(as.logical(FALSE),discreteSubdata$nbr_traits[j]))}
         }
         DiscreteData <- ChangeContinuousTraitInDiscrete(ContinuousData, indexZero, Nstates, intervals)
         Nstates
@@ -457,17 +454,14 @@ simData <- function(list, dataframe){
         #change columns names
         DiscreteData <- as.data.frame(DiscreteData)
         colnames(DiscreteData) <- sprintf("T%s.%s", seq(1:sum(subdata$nbr_traits)), i)
-        
         FinalData <- cbind(FinalData, DiscreteData)
       }
       else{
         #change columns names
         ContinuousData <- as.data.frame(ContinuousData)
         colnames(ContinuousData) <- sprintf("T%s.%s", seq(1:sum(subdata$nbr_traits)), i)
-
         FinalData <- cbind(FinalData, ContinuousData)
       }
-    print("youpi")
     }
   }#close for loop
   
