@@ -2,6 +2,7 @@
 #install.packages("phytools")
 #install.packages("Matrix")
 #install.packages("castor")
+#install.packages("geiger")
 #install.packages("tidyverse")
 
 
@@ -9,6 +10,7 @@ library(mvMORPH)
 library(phytools)
 library(Matrix)
 library(castor)
+library(geiger)
 library(tidyverse)
 
 #' @title Simulate variance-covariance matrix for morphological evolution
@@ -79,8 +81,12 @@ simSigma <- function(Ntraits, Cor = NULL, Sigma2 = NULL, uncovTraits = NULL, Fra
     uncovTraits = NULL
   }
   
+  if(!is.null(uncovTraits) && uncovTraits > Ntraits){
+    stop("Uncovtraits should be equal or smaller than Ntraits")
+  }
+  
   if(!is.null(uncovTraits) && Ntraits > 1) {
-    columns <- sample(nrow(Sigmas), uncovTraits)
+    columns <- 1:uncovTraits
     for(i in columns){
       valueToKeep <- Sigmas[i, i]
       Sigmas[i,] <- 0
@@ -109,6 +115,7 @@ simSigma <- function(Ntraits, Cor = NULL, Sigma2 = NULL, uncovTraits = NULL, Fra
 simSigma(3, uncovTraits = 0)
 simSigma(5, uncovTraits = 0, FracNocov = 0.6)
 simSigma(5, FracNocov = 0.6)
+simSigma(5, uncovTraits = 5)
 
 #' @title Simulate alpha matrix for morphological evolution
 #'
@@ -224,15 +231,15 @@ ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
   # subclass:
   # - intervals: states are fairly split
   # - ordinal: ordered states, split is random
-  # - nominal: split is random, no order (shuffled)
+  # - nominal_no: split is random, no order (shuffled)
+  # - nominal_o: 
   # return a vector of discrete value corresponding of continuous value in a same interval.
   
-  if(subclass != "nominal" & subclass != "ordinal" & subclass != "interval"){
+  if(subclass != "non_eq_nominal" & subclass != "ordinal" & subclass != "interval" & subclass != "eq_nominal"){
     stop("The subclass should be one of the following: nominal, ordinal or interval")
   }
   
   if(subclass == "interval"){
-  #Define the thresholds in case it's ordered
   breaks <- seq(min(values), max(values), length.out = Nstates + 1)
   conversion <- as.character(findInterval(values, breaks[-c(1, length(breaks))]))
   }
@@ -242,15 +249,26 @@ ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
     conversion <- as.character(findInterval(values, sort(breaks)))
   }
   
-  if(subclass == "nominal"){
-    breaks <- runif((Nstates - 1), min(values), max(values))
+  if(subclass == "nominal_neq"){
+    breaks <- sample(sort(values, Nstates-1))
     nominal_values <- findInterval(values, sort(breaks))
     shuffle <- sample(0:(Nstates-1), Nstates, replace = FALSE)
-    conversion <- as.character(1:length(ordered_values)) # vector with shuffling 
-    for (i in 1:length(unique(ordered_values))){
-      conversion[ordered_values == unique(ordered_values)[i]] <- shuffle[i]
+    conversion <- as.character(1:length(nominal_values)) # vector with shuffling 
+    for (i in 1:length(unique(nominal_values))){
+      conversion[nominal_values == unique(nominal_values)[i]] <- shuffle[i]
     }
   }
+  
+  if(subclass == "nominal_eq"){
+    breaks <- seq(min(values), max(values), length.out = Nstates + 1)
+    nominal_eq_values <- findInterval(values, breaks[-c(1, length(breaks))])
+    shuffle <- sample(0:(Nstates-1), Nstates, replace = FALSE)
+    conversion <- as.character(1:length(nominal_eq_values)) # vector with shuffling 
+    for (i in 1:length(unique(nominal_eq_values))){
+      conversion[nominal_eq_values == unique(nominal_eq_values)[i]] <- shuffle[i]
+    }
+  }
+  
   return(conversion)
 }
 
@@ -280,48 +298,47 @@ ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subcl
   return(dataframe)
 }
 
-# Scaled continuous traits
-#########################
-#Scale traits between 0 and 10 
-#(https://github.com/GitTFJ/Handling-missing-values-in-trait-data/blob/main/Script1_SimulateData_V1.0.R)
-rangeScale <- function(x, range){((x-min(x))/(max(x)-min(x))*range)}
-ScaledTraits <- apply(ContinuousData$data, MARGIN = 2, rangeScale, 10)
-ScaledTraits <- as.data.frame(ScaledTraits)
-ScaledTraits
+# # Scaled continuous traits
+# #########################
+# #Scale traits between 0 and 10 
+# #(https://github.com/GitTFJ/Handling-missing-values-in-trait-data/blob/main/Script1_SimulateData_V1.0.R)
+# rangeScale <- function(x, range){((x-min(x))/(max(x)-min(x))*range)}
+# ScaledTraits <- apply(ContinuousData$data, MARGIN = 2, rangeScale, 10)
+# ScaledTraits <- as.data.frame(ScaledTraits)
+# ScaledTraits
 
 
-#as first argument, list(Birth, Death, Ntaxa), second arguments is a dataframe, third argument save in rds format
-simData <- function(list, dataframe, save = TRUE){
+#as first argument, param_tree(Birth, Death, Ntaxa), second arguments is a dataframe, third argument save in rds format
+simData <- function(param_tree, dataframe, save = TRUE){
   
-  if(dim(dataframe)[2] != 8){
+  if(ncol(dataframe) != 8){
     stop("The number of columns should be equal to 8.")
   }
   
   #Rename columns of the data frame
   ################################
-  newNames <-  c("nbr_traits", "class", "subclass", "model", "states", "correlation", "uncorr_traits", "fraction_uncorr_traits")
+  newNames <-  c("nbr_traits", "class", "model", "states", "correlation", "uncorr_traits", "fraction_uncorr_traits", "lambda")
   names(dataframe) <- newNames
   #in subclass there are, continuous, ordinal, interval(same quantity), nominal(no order).
-  # uncorr_traits >= 0, 0<x<=1 fraction of uncovariant traits, number of uncorrelated should be >=1. 
+  # uncorr_traits >= 0, 0<x<=1 fraction of uncovariant traits among the correlated group of traits, number of uncorrelated should be >=1. 
 
   
-  #Transform the columns (nbrs_traits, uncorr_traits, fraction_uncorr_traits as numeric, and rest as character)
+  #Transform the columns (nbrs_traits as integer, uncorr_traits, fraction_uncorr_traits and lambda as numeric, and rest as character)
   #######################################################################
-  dataframe[,c(2:4,6)] <- apply(dataframe[,c(2:4,6)], 2, as.character)
+  dataframe[,c(2:3,5)] <- apply(dataframe[,c(2:3,5)], 2, as.character)
   dataframe$nbr_traits <- as.integer(dataframe$nbr_traits) #if the value is a float, converted in integer. 
-  dataframe[,c(5,7:8)] <- apply(dataframe[,c(5,7:8)], 2, as.numeric)
+  dataframe[,c(4,6:8)] <- apply(dataframe[,c(4,6:8)], 2, as.numeric)
   
   
   #Check the data frame
   #####################
   
   #Homogenize the names
-  dataframe$class[str_detect(dataframe$class, "^[cC]")] <- "continuous" #every class have the same name
-  dataframe$class[str_detect(dataframe$class, "^[dD]")] <- "discrete"
-  dataframe$subclass[str_detect(dataframe$subclass, "^[cC]")] <- "continuous"
-  dataframe$subclass[str_detect(dataframe$subclass, "^[oO]")] <- "ordinal"
-  dataframe$subclass[str_detect(dataframe$subclass, "^[iI]")] <- "interval"
-  dataframe$subclass[str_detect(dataframe$subclass, "^[nN]")] <- "nominal"
+  dataframe$class[str_detect(dataframe$class, "^[cC]")] <- "continuous"
+  dataframe$class[str_detect(dataframe$class, "^[oO]")] <- "ordinal"
+  dataframe$class[str_detect(dataframe$class, "^[iI]")] <- "interval"
+  dataframe$class[str_detect(dataframe$class, "^[nN]")] <- "non_eq_nominal"
+  dataframe$class[str_detect(dataframe$class, "^[eE]")] <- "eq_nominal"
   dataframe$model[str_detect(dataframe$model, "^[bB]")] <- "BM1"
   dataframe$model[str_detect(dataframe$model, "^[oO]")] <- "OU1"
   dataframe$model[str_detect(dataframe$model, "^[eE]")] <- "ER"
@@ -329,27 +346,30 @@ simData <- function(list, dataframe, save = TRUE){
   dataframe$model[str_detect(dataframe$model, "^[aR]")] <- "ARD"
   
   
+  
   #Check if all the rows are filled correctly
   
-  wrong <- which(dataframe$class == "continuous" & dataframe$subclass == "continuous" &
+  wrong <- which(dataframe$class == "continuous" &
                    (dataframe$model == "BM1" | dataframe$model == "OU1") & dataframe$states != 1)
-  
   if(length(wrong) != 0){
     stop(paste("This line ", wrong, "is not filled correctly \n"))
   }
   
-  wrong <- which(dataframe$class == "discrete" & (dataframe$subclass == "ordinal" | 
-                                                    dataframe$subclass == "interval" | dataframe$subclass == "nominal") &
-                   (dataframe$model == "ER" | dataframe$model == "SYM" | dataframe$model == "ARG") & dataframe$states <= 1)
+  wrong <- which(dataframe$class != "continuous" & dataframe$states <= 1)
+  if(length(wrong) != 0){
+    stop(paste("This line ", wrong, "is not filled correctly \n"))
+  }
+  
+  wrong <- which(dataframe$lambda < 0 & dataframe$lambda > 1)
   if(length(wrong) != 0){
     stop(paste("This line ", wrong, "is not filled correctly \n"))
   }
   
   # Simulate phylogeny
   ####################
-  birth = list[[1]]
-  death = list[[2]]
-  ntaxa = list[[3]]
+  birth = param_tree[[1]]
+  death = param_tree[[2]]
+  ntaxa = param_tree[[3]]
   
   # Simulating phylogenies fails sometimes. Try until we are successful
   Extant <- FALSE
@@ -360,6 +380,7 @@ simData <- function(list, dataframe, save = TRUE){
     }
   }
   
+  
   #Simulate by correlation
   ########################
   
@@ -368,10 +389,27 @@ simData <- function(list, dataframe, save = TRUE){
   
   #Final matrix
   FinalData <- as.data.frame(matrix(0, nrow = length(SimTree$tip.label), ncol = 0))
-  max_rate <- 0.6
+  max_rate <- 0.5
+  AlphasList <- list()
+  ThetasList <- list()
+  SigmasList <- list()
+  TreeList <- list()
   for(i in correlation_values){
+
+    subdataTree <- SimTree
     #build a subset of traits being correlated together
     subdata <- subset(dataframe, dataframe$correlation == i)
+    
+    #rescale phylogeny
+    lambdaCheck <- mean(subdata$lambda)
+    if(lambdaCheck != 1){
+      subdataTree <- rescale(SimTree, "lambda", lambdaCheck)
+    }
+    
+    #check fraction of uncorrelated
+    if(sum(subdata$fraction_uncorr_traits) != subdata$fraction_uncorr_traits[1] * nrow(subdata)){
+      stop("The fraction of uncorrelated trait should be equal within the same group of correlated traits")
+    }
     
     if(nrow(subdata) == 1){ #means no correlated with others group of traits
       Sigmas <- simSigma(subdata$nbr_traits, uncovTraits = subdata$uncorr_traits, FracNocov = subdata$fraction_uncorr_traits)
@@ -382,7 +420,7 @@ simData <- function(list, dataframe, save = TRUE){
           Alphas <- simAlpha(subdata$nbr_traits, alpha = 1e-5 * log(2))
         }
         #simulate independent continuous traits
-        ContinuousData <- mvSIM(tree = SimTree,
+        ContinuousData <- mvSIM(tree = subdataTree,
                                 model = subdata$model,
                                 param = list(ntraits = subdata$nbr_traits,
                                              theta = Thetas, #theta = ancestral states
@@ -390,100 +428,155 @@ simData <- function(list, dataframe, save = TRUE){
                                              alpha = Alphas))
         #change columns names
         ContinuousData <- as.data.frame(ContinuousData)
-        colnames(ContinuousData) <- sprintf("T%s.%s", seq(1:subdata$nbr_traits), i)
+        colnames(ContinuousData) <- sprintf("F%s.%s", seq(1:subdata$nbr_traits), i)
         FinalData <- cbind(FinalData, ContinuousData)
       }
       else{
         Ordinal <- FALSE
-        if(subdata$subclass == "ordinal"){
+        if(subdata$class == "ordinal"){
           Ordinal <- TRUE
         }
         
         #simulate independent discrete traits
         DiscreteData <- simDiscreteTraits(subdata$nbr_traits, 
-                                          subdata$states, subdata$model, max_rate, SimTree, equal = FALSE, Ordinal)
+                                          subdata$states, subdata$model, max_rate, subdataTree, equal = FALSE, Ordinal)
         
         #change columns names
         DiscreteData$tip_mat <- as.data.frame(DiscreteData$tip_mat)
-        colnames(DiscreteData$tip_mat) <- sprintf("T%s.%s", seq(1:subdata$nbr_traits), i)
+        colnames(DiscreteData$tip_mat) <- sprintf("I%s.%s", seq(1:subdata$nbr_traits), i)
         
         FinalData <- cbind(FinalData, DiscreteData$tip_mat)
       }
     }
     if(nrow(subdata) > 1){
+      #check if the dataframe is correctly filled
+      wrong <- which(subdata$model != "BM1" & subdata$model != "OU1" | subdata$lambda != lambdaCheck)
+      if(length(wrong) != 0){
+        stop(paste("This line ", wrong, "is not filled correctly \n"))
+      }
+      
       Ntraits <- sum(subdata$nbr_traits)
       model <- "BM1"
-      indexZero <- NULL
       Thetas <- runif(Ntraits, min = -10, max = 10)
       Alphas <- simAlpha(Ntraits, alpha = 1e-5 * log(2)) #by default, alpha is for a Brownian motion model
-      uncovTraits <- sum(subdata$uncorr_traits)
-      FracNocov <- sum(subdata$nbr_traits * subdata$fraction_uncorr_traits) / Ntraits
-      Sigmas <- simSigma(Ntraits, uncovTraits = subdata$uncorr_traits, FracNocov = subdata$fraction_uncorr_traits)
+      uncorrTraits <- sum(subdata$uncorr_traits)
+      #FracNocov <- sum(subdata$nbr_traits * subdata$fraction_uncorr_traits) / Ntraits
+      Sigmas <- simSigma(Ntraits, uncovTraits = uncorrTraits, FracNocov = uncorrFractionCheck)
       
-      if("OU1" %in% subdata$subclass && "BM1" %in% subdata$subclass || "discrete" %in% subdata$class){
+      if("OU1" %in% subdata$model && "BM1" %in% subdata$model){
         Alphas <- simAlpha(Ntraits)
         model <- "OU1"
-        # set 0 to diagonal for BM1 and discrete
-        indexZero <- sample(1:Ntraits, Ntraits - sum(subdata$nbr_trait[subdata$model == "OU1"]), replace = FALSE)
-        diag(Alphas)[indexZero] <- 1e-5
+        
+        # in case uncovTraits simulated with BM
+        indexUncorrTraitsBM <- NULL
+        uncorrTraitsBM <- sum(subdata$uncorr_traits[subdata$model == "BM1"])
+        uncorrTraitsOU <- uncorrTraits - uncorrTraitsBM #number of uncorrelated traits simulated with OU
+        if(uncorrTraitsBM != 0){
+          indexUncorrTraitsBM <- 1:uncorrTraitsBM
+          indexBM <-c(indexUncorrTraitsBM, sample((1+uncorrTraits):Ntraits, (Ntraits - uncorrTraitsBM - 
+                                                    sum(subdata$nbr_trait[subdata$model == "OU1"])), replace = FALSE))
+        }
+        if(uncorrTraitsBM == 0){
+          #in case no uncovTraits in the BM model.
+          indexBM <- sample((1 + uncorrTraitsOU):Ntraits, Ntraits - sum(subdata$nbr_trait[subdata$model == "OU1"]), replace = FALSE)
+        }
+        # set 0 to diagonal for BM1
+        diag(Alphas)[indexBM] <- 1e-5
       }
       
-      if(sum(subdata$subclass == "OU1") == nrow(subdata)){
+      if(sum(subdata$model == "OU1") == nrow(subdata)){
         Alphas <- simAlpha(Ntraits)
         model <- "OU1"
       }
-      
-      if(sum(subdata$class == "discrete") + sum(subdata$subclass == "BM1") == nrow(subdata)){
-        indexZero <- sample(1:Ntraits, sum(subdata$nbr_trait[subdata$class == "discrete"]), replace = FALSE)
-      }
-      
+
       #Simulate data
-      ContinuousData <- mvSIM(tree = SimTree,
+      ContinuousData <- mvSIM(tree = subdataTree,
                               model = model,
                               param = list(ntraits = Ntraits,
                                            theta = Thetas, #theta = ancestral states
                                            sigma = Sigmas,
                                            alpha = Alphas))
-      
-      #rescale data??
-     
-      if(!is.null(indexZero)){ #mean that there is some discrete correlated data
-        Nstates <- rep(subdata$states[subdata$states > 1], subdata$nbr_traits[subdata$states > 1])
-        discreteSubdata <- subset(subdata, subdata$class == "discrete")
-        subclass <- rep(discreteSubdata$subclass, discreteSubdata$nbr_traits)
-        DiscreteData <- ChangeContinuousTraitInDiscrete(ContinuousData, indexZero, Nstates, subclass)
 
+      
+      
+      #If correlated discrete traits with continuous traits
+      discreteSubdata <- subset(subdata, subdata$class != "continuous")
+      if(nrow(discreteSubdata) >= 1){
+        Nstates <- rep(discreteSubdata$states, discreteSubdata$nbr_traits)
+        class <- rep(discreteSubdata$class, discreteSubdata$nbr_traits)
+        
+        indexColumConvert <- c()
+        for(r in 1:nrow(discreteSubdata)){
+          if(discreteSubdata$model[r] == "BM1" & discreteSubdata$uncorr_traits[r] != 0){
+            indexColumConvert <- c(indexColumConvert, tail(indexUncorrTraitsBM, n = discreteSubdata$uncorr_traits[r]))
+            indexUncorrTraitsBM <- indexUncorrTraitsBM[-tail(indexUncorrTraitsBM, n = discreteSubdata$uncorr_traits[r])] #delete the index selected above
+          }
+          indexUncorrTraitsOU <- (1 + uncorrTraitsBM):uncorrTraits
+          if(discreteSubdata$model[r] == "OU1" & discreteSubdata$uncorr_traits[r] != 0){
+            indexColumConvert <- c(indexColumConvert, tail(indexUncorrTraitsOU, n = discreteSubdata$uncorr_traits[r]))
+            indexUncorrTraitsOU <- indexUncorrTraitsOU[-tail(indexUncorrTraitsOU, n = discreteSubdata$uncorr_traits[r])] #delete the index selected above
+          }
+        }
+        BMTraitsRemained <- sample(indexBM[(uncorrTraitsBM + 1):length(indexBM)], 
+                                   sum(discreteSubdata$nbr_traits[discreteSubdata$model == "BM1"]) - uncorrTraitsBM)
+        
+        if(length(indexBM[(uncorrTraitsBM + 1):length(indexBM)]) == 1){
+          BMTraitsRemained <- indexBM[(uncorrTraitsBM + 1):length(indexBM)]
+        }
+        
+        indexOU <- setdiff(1:Ntraits, indexBM)
+        OUTraitsRemained <- sample(indexOU[(uncorrTraitsOU+1):length(indexOU)], 
+                                   sum(discreteSubdata$nbr_traits[discreteSubdata$model == "OU1"]) - uncorrTraitsOU)
+        
+        if(length(indexOU[(uncorrTraitsOU+1):length(indexOU)]) == 1){
+          OUTraitsRemained <- indexOU[(uncorrTraitsOU+1):length(indexOU)]
+        }
+        
+        indexColumConvert <- sort(c(indexColumConvert, BMTraitsRemained, OUTraitsRemained))
+        DiscreteData <- ChangeContinuousTraitInDiscrete(ContinuousData, indexColumConvert, Nstates, class)
+        
         #change columns names
-        DiscreteData <- as.data.frame(DiscreteData)
-        colnames(DiscreteData) <- sprintf("T%s.%s", seq(1:sum(subdata$nbr_traits)), i)
+        colnames(DiscreteData) <- sprintf("F%s.%s", seq(1:sum(subdata$nbr_traits)), i)
+        colnames(DiscreteData)[indexColumConvert] <- sprintf("I%s.%s", seq(1:sum(discreteSubdata$nbr_traits)), i)
         FinalData <- cbind(FinalData, DiscreteData)
       }
+
       else{
         #change columns names
         ContinuousData <- as.data.frame(ContinuousData)
-        colnames(ContinuousData) <- sprintf("T%s.%s", seq(1:sum(subdata$nbr_traits)), i)
+        colnames(ContinuousData) <- sprintf("F%s.%s", seq(1:sum(subdata$nbr_traits)), i)
         FinalData <- cbind(FinalData, ContinuousData)
       }
     }
+    #Save parameters in an own list
+    AlphasList[[i]] <- Alphas
+    ThetasList[[i]] <- Thetas
+    SigmasList[[i]] <- Sigmas
+    TreeList[[i]] <- subdataTree
+    
+     
   }#close for loop
   
+  FinalDiscreteData <- FinalData %>% select(starts_with("I"))
+  FinlaContinuousData <- FinalData %>% select(starts_with("F"))
   
   #Define list of object
   ######################
-  #Data <- list(TotalData = FinalData, )
+  Data <- list(FinalData = FinalData, ContinuousData = FinlaContinuousData, DiscreteData = FinalDiscreteData, 
+               AlphaMatrices = AlphasList, Thetas = ThetasList, SigmaMatrices = SigmasList, TreeList = TreeList, 
+               PhyloParam = param_tree, dataframe = dataframe)
   
   #Save data
   ##########
   if(save){
-  save(FinalData, file="simulatedData.rds")
+  save(Data, file="simulatedData.RData")
   }
   
-  return(FinalData)
+  return(Data)
     
 } #close function
 
 data <- read.csv("DataTest.csv", header = TRUE, sep = ";")
-data
 tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 30)
-new_data <- simData(tree_arg, data, save = TRUE)
-new_data
+new_data <- simData(tree_arg, data, save = FALSE)
+
