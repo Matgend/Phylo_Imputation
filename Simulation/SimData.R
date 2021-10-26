@@ -219,7 +219,7 @@ simDiscreteTraits <- function(Ntraits, Nstates, rate_model, max_rate, tree, equa
   }
   return(list(tip_mat = tip_mat, node_mat = node_mat))
 }
-simDiscreteTraits(4, c(2,3,3,4), "ER" ,0.9, SimTree, equal = F, Ordinal = F)
+#simDiscreteTraits(4, c(2,3,3,4), "ER" ,0.9, SimTree, equal = F, Ordinal = F)
 
 # Simulate correlated discrete traits with continuous traits
 ############################################################
@@ -395,7 +395,6 @@ simData <- function(param_tree, dataframe, save = TRUE){
   SigmasList <- list()
   TreeList <- list()
   for(i in correlation_values){
-
     subdataTree <- SimTree
     #build a subset of traits being correlated together
     subdata <- subset(dataframe, dataframe$correlation == i)
@@ -403,7 +402,7 @@ simData <- function(param_tree, dataframe, save = TRUE){
     #rescale phylogeny
     lambdaCheck <- mean(subdata$lambda)
     if(lambdaCheck != 1){
-      subdataTree <- rescale(SimTree, "lambda", lambdaCheck)
+      subdataTree <- geiger::rescale(SimTree, "lambda", lambdaCheck)
     }
     
     #check fraction of uncorrelated
@@ -457,20 +456,22 @@ simData <- function(param_tree, dataframe, save = TRUE){
       
       Ntraits <- sum(subdata$nbr_traits)
       model <- "BM1"
+      indexBM <- NULL
       Thetas <- runif(Ntraits, min = -10, max = 10)
       Alphas <- simAlpha(Ntraits, alpha = 1e-5 * log(2)) #by default, alpha is for a Brownian motion model
       uncorrTraits <- sum(subdata$uncorr_traits)
+      indexUncorrTraitsBM <- NULL
+      uncorrTraitsBM <- sum(subdata$uncorr_traits[subdata$model == "BM1"])
+      uncorrTraitsOU <- uncorrTraits - uncorrTraitsBM #number of uncorrelated traits simulated with OU
       #FracNocov <- sum(subdata$nbr_traits * subdata$fraction_uncorr_traits) / Ntraits
-      Sigmas <- simSigma(Ntraits, uncovTraits = uncorrTraits, FracNocov = uncorrFractionCheck)
+      Sigmas <- simSigma(Ntraits, uncovTraits = uncorrTraits, FracNocov = subdata$fraction_uncorr_traits[1])
       
       if("OU1" %in% subdata$model && "BM1" %in% subdata$model){
         Alphas <- simAlpha(Ntraits)
         model <- "OU1"
         
         # in case uncovTraits simulated with BM
-        indexUncorrTraitsBM <- NULL
-        uncorrTraitsBM <- sum(subdata$uncorr_traits[subdata$model == "BM1"])
-        uncorrTraitsOU <- uncorrTraits - uncorrTraitsBM #number of uncorrelated traits simulated with OU
+        
         if(uncorrTraitsBM != 0){
           indexUncorrTraitsBM <- 1:uncorrTraitsBM
           indexBM <-c(indexUncorrTraitsBM, sample((1+uncorrTraits):Ntraits, (Ntraits - uncorrTraitsBM - 
@@ -511,24 +512,43 @@ simData <- function(param_tree, dataframe, save = TRUE){
             indexColumConvert <- c(indexColumConvert, tail(indexUncorrTraitsBM, n = discreteSubdata$uncorr_traits[r]))
             indexUncorrTraitsBM <- indexUncorrTraitsBM[-tail(indexUncorrTraitsBM, n = discreteSubdata$uncorr_traits[r])] #delete the index selected above
           }
-          indexUncorrTraitsOU <- (1 + uncorrTraitsBM):uncorrTraits
           if(discreteSubdata$model[r] == "OU1" & discreteSubdata$uncorr_traits[r] != 0){
+            indexUncorrTraitsOU <- (1 + uncorrTraitsBM):uncorrTraits
             indexColumConvert <- c(indexColumConvert, tail(indexUncorrTraitsOU, n = discreteSubdata$uncorr_traits[r]))
             indexUncorrTraitsOU <- indexUncorrTraitsOU[-tail(indexUncorrTraitsOU, n = discreteSubdata$uncorr_traits[r])] #delete the index selected above
           }
         }
-        BMTraitsRemained <- sample(indexBM[(uncorrTraitsBM + 1):length(indexBM)], 
-                                   sum(discreteSubdata$nbr_traits[discreteSubdata$model == "BM1"]) - uncorrTraitsBM)
         
-        if(length(indexBM[(uncorrTraitsBM + 1):length(indexBM)]) == 1){
+        
+        if(sum(discreteSubdata$model == "OU1") == nrow(discreteSubdata)){
+          BMTraitsRemained <- NULL
+          OUTraitsRemained <- sample(Ntraits[(uncorrTraitsOU+1):length(Ntraits)], 
+                                     sum(discreteSubdata$nbr_traits[discreteSubdata$model == "OU1"]) - uncorrTraitsOU)
+        }
+        
+        if(sum(discreteSubdata$model == "BM1") == nrow(discreteSubdata)){
+          BMTraitsRemained <- sample(Ntraits[(uncorrTraitsBM + 1):length(Ntraits)], 
+                                     sum(discreteSubdata$nbr_traits[discreteSubdata$model == "BM1"]) - uncorrTraitsBM)
+          OUTraitsRemained <- NULL
+        }
+        
+        indexOU <- NULL
+        if("OU1" %in% discreteSubdata$model && "BM1" %in% discreteSubdata$model){
+          BMTraitsRemained <- sample(indexBM[(uncorrTraitsBM + 1):length(indexBM)], 
+                                     sum(discreteSubdata$nbr_traits[discreteSubdata$model == "BM1"]) - uncorrTraitsBM)
+          
+          indexOU <- setdiff(1:Ntraits, indexBM)
+          OUTraitsRemained <- sample(indexOU[(uncorrTraitsOU+1):length(indexOU)], 
+                                     sum(discreteSubdata$nbr_traits[discreteSubdata$model == "OU1"]) - uncorrTraitsOU)
+        }
+        
+        
+        if(!is.null(indexBM) & length(indexBM[(uncorrTraitsBM + 1):length(indexBM)]) == 1){
           BMTraitsRemained <- indexBM[(uncorrTraitsBM + 1):length(indexBM)]
         }
         
-        indexOU <- setdiff(1:Ntraits, indexBM)
-        OUTraitsRemained <- sample(indexOU[(uncorrTraitsOU+1):length(indexOU)], 
-                                   sum(discreteSubdata$nbr_traits[discreteSubdata$model == "OU1"]) - uncorrTraitsOU)
         
-        if(length(indexOU[(uncorrTraitsOU+1):length(indexOU)]) == 1){
+        if(!is.null(indexOU) & length(indexOU[(uncorrTraitsOU+1):length(indexOU)]) == 1){
           OUTraitsRemained <- indexOU[(uncorrTraitsOU+1):length(indexOU)]
         }
         
@@ -577,6 +597,5 @@ simData <- function(param_tree, dataframe, save = TRUE){
 } #close function
 
 data <- read.csv("DataTest.csv", header = TRUE, sep = ";")
-tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 30)
+tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 40)
 new_data <- simData(tree_arg, data, save = FALSE)
-
