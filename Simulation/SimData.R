@@ -365,6 +365,7 @@ simData <- function(param_tree, dataframe, save = TRUE){
     stop(paste("This line ", wrong, "is not filled correctly \n"))
   }
   
+  
   # Simulate phylogeny
   ####################
   birth = param_tree[[1]]
@@ -396,6 +397,16 @@ simData <- function(param_tree, dataframe, save = TRUE){
   TreeList <- list()
   for(i in correlation_values){
     subdataTree <- SimTree
+    wrong <- which(sum(dataframe$correlation == i) == 1 & dataframe$correlation == i & dataframe$class != "continuous" 
+                   & dataframe$uncorr_traits != dataframe$nbr_traits & dataframe$fraction_uncorr_traits != 0 & (dataframe$model != "OU1" | dataframe$model != "BM1"))
+    if(length(wrong) != 0){
+      stop(paste("This line ", wrong, "is not filled correctly \n"))
+    }
+    
+    wrong <- which(dataframe$nbr_traits == 1 & dataframe$correlation == i & sum(dataframe$correlation == i) == 1 & (dataframe$uncorr_traits != 1 | dataframe$fraction_uncorr_traits != 0))
+    if(length(wrong) != 0){
+      stop(paste("This line ", wrong, "is not filled correctly \n"))
+    }
     #build a subset of traits being correlated together
     subdata <- subset(dataframe, dataframe$correlation == i)
     
@@ -435,11 +446,10 @@ simData <- function(param_tree, dataframe, save = TRUE){
         if(subdata$class == "ordinal"){
           Ordinal <- TRUE
         }
-        
         #simulate independent discrete traits
         DiscreteData <- simDiscreteTraits(subdata$nbr_traits, 
                                           subdata$states, subdata$model, max_rate, subdataTree, equal = FALSE, Ordinal)
-        
+
         #change columns names
         DiscreteData$tip_mat <- as.data.frame(DiscreteData$tip_mat)
         colnames(DiscreteData$tip_mat) <- sprintf("I%s.%s", seq(1:subdata$nbr_traits), i)
@@ -598,4 +608,5 @@ simData <- function(param_tree, dataframe, save = TRUE){
 
 data <- read.csv("DataTest.csv", header = TRUE, sep = ";")
 tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 40)
-new_data <- simData(tree_arg, data, save = FALSE)
+new_data <- simData(tree_arg, data, save = TRUE)
+
