@@ -136,7 +136,7 @@ partitions <- dataPartition(Data)
 NAImputation <- function(missingRates, partitions, save = TRUE){
 # missingRates: numerical vector corresponding to the rate of missing value to introduce in the data
 # partitions: nested list having character vectors corresponding to the data partition
-# save: booléan: if TRUE, save data in a .RData file
+# save: boolÃ©an: if TRUE, save data in a .RData file
 # return: a nested list composed of the partitioned data with the 3 kind of missing data (MCRA, MAR and MNAR) according to a precise missing rate.
   
   MCAR <- list()
@@ -252,6 +252,6 @@ NAImputation <- function(missingRates, partitions, save = TRUE){
 
 #Split data
 partitions <- dataPartition(Data)
-missingRates <- seq(0.05, 0.40, 0.15) # proportion rows having a missing value
+missingRates <- seq(0.05, 0.40, 0.15) 
 missingData <- NAImputation(missingRates, partitions, save = FALSE)
 
