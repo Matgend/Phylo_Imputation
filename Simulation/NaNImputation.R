@@ -139,7 +139,7 @@ NAImputation <- function(missingRates, partitions, trees, save = TRUE){
 # missingRates: numerical vector corresponding to the rate of missing value to introduce in the data
 # partitions: nested list having character vectors corresponding to the data partition
 # trees: list of trees of class "phylo"
-# save: booléan: if TRUE, save data in a .RData file
+# save: boolÃ©an: if TRUE, save data in a .RData file
 # return: a nested list composed of the partitioned data with the 3 kind of missing data (MCRA, MAR and MNAR) according to a precise missing rate and of phylogenetic trees with missing tips.
   
   MCAR <- list()
