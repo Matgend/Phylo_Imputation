@@ -10,5 +10,5 @@ This simulates continuous traits along a phylogeny according to Brownian motion.
 `SimData.R`
 This simulates continuous, discrete traits along a phylogeny according to several models as Brownian motion, OU and MK.
 
-`NAImputation.R`
+`NaNImputation.R`
 This simulates NaNs according to 3 concepts of missing data (MCRA, MAR and MNAR) and incomplete phylogenetic trees. 
