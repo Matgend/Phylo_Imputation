@@ -2,7 +2,9 @@
 #install.packages("missMethods")
 
 library(tidyverse)
+library(geiger)
 library(missMethods)
+#https://github.com/torockel/missMethods/blob/master/R/delete_censoring.R
 
 
 # load simulated data
@@ -133,11 +135,12 @@ partitions <- dataPartition(Data)
 #NA imputation
 ##############
 
-NAImputation <- function(missingRates, partitions, save = TRUE){
+NAImputation <- function(missingRates, partitions, trees, save = TRUE){
 # missingRates: numerical vector corresponding to the rate of missing value to introduce in the data
 # partitions: nested list having character vectors corresponding to the data partition
-# save: boolÃ©an: if TRUE, save data in a .RData file
-# return: a nested list composed of the partitioned data with the 3 kind of missing data (MCRA, MAR and MNAR) according to a precise missing rate.
+# trees: list of trees of class "phylo"
+# save: booléan: if TRUE, save data in a .RData file
+# return: a nested list composed of the partitioned data with the 3 kind of missing data (MCRA, MAR and MNAR) according to a precise missing rate and of phylogenetic trees with missing tips.
   
   MCAR <- list()
   MAR <- list()
@@ -238,8 +241,26 @@ NAImputation <- function(missingRates, partitions, save = TRUE){
     names(MNAR) <- namesMNAR
   }
   
+  #Drop randomly tips in phylogenetic tree
+  TreeDrop <- list()
+  namesTrees <- c()
+  for (t in 1:length(trees)){
+    Ntips <- length(trees[[t]]$tip.label)
+    
+    for(mr in missingRates){
+    namesTrees <- c(namesTrees, paste("TreeDrop", t-1, mr, sep = "/"))
+    
+    #drop randomly some tips
+    dropTree <- geiger::drop.random(trees[[t]], Ntips * mr)
+    TreeDrop <- c(TreeDrop, list(dropTree))
+    }
+  }
+  
+  #rename the nested list
+  names(TreeDrop) <- namesTrees
+  
   #Data with NA imputed
-  DataNA <- list(MCAR = MCAR, MAR = MAR, MNAR = MNAR)
+  DataNA <- list(MCAR = MCAR, MAR = MAR, MNAR = MNAR, DropTrees = TreeDrop)
   
   #Save data
   ##########
@@ -252,6 +273,7 @@ NAImputation <- function(missingRates, partitions, save = TRUE){
 
 #Split data
 partitions <- dataPartition(Data)
-missingRates <- seq(0.05, 0.40, 0.15) 
-missingData <- NAImputation(missingRates, partitions, save = FALSE)
+
+missingRates <- seq(0.05, 0.40, 0.15)
+missingData <- NAImputation(missingRates, partitions, Data$TreeList, save = FALSE)
 
