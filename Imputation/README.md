@@ -5,4 +5,7 @@
 This scripts matches a tree and a trait files and performs imputations using the MissForest package. It uses eigenvalues as summary for the underlying phylogenetic trees using the `PVR` library. 
 
 `impute_mvMORPH.R`
-This scripts imputes missing values using the mvMORPH package.
+This scripts imputes missing continuous values using the mvMORPH package.
+
+`impute_discrTrait_phytools.R`
+This scripts imputes missing states of a single discrete trait using the phytools package.
