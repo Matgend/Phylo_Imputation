@@ -61,7 +61,8 @@ dataPartition <- function(Data){
   for (c in correlation_values){
     
     #extract name of the columns
-    pattern <- paste("..\\.", c, sep = "")
+    #pattern <- paste("..\\.", c, sep = "")
+    pattern <- paste("[:alnum:]*\\.", c, sep = "")
     subColnames <- str_extract(colnames(Data$FinalData), pattern)
     subColnames <- subColnames[!is.na(subColnames)]
     
@@ -111,7 +112,9 @@ dataPartition <- function(Data){
       }
     }
   }
-  partitions <- list(AllTraits = list(colnames(Data$FinalData)), IndDiscreteTraits = IndDiscreteTraits, IndContinousTraits = IndContinousTraits, MixedCorrelatedTraits = MixedCorrelatedTraits, CorrDiscreteTraits = CorrDiscreteTraits, CorrContinuousTraits = CorrContinuousTraits)
+  partitions <- list(AllTraits = list(colnames(Data$FinalData)), IndDiscreteTraits = IndDiscreteTraits, 
+                     IndContinousTraits = IndContinousTraits, MixedCorrelatedTraits = MixedCorrelatedTraits,
+                     CorrDiscreteTraits = CorrDiscreteTraits, CorrContinuousTraits = CorrContinuousTraits)
   return(partitions)
 }
 
@@ -147,9 +150,6 @@ getTipsNA <- function (Tree, MinTips){
   return(SampledTips)
 }
 
-test <- getTipsNA(Data$TreeList$`0`, 6)
-test
-plot(Data$TreeList$`0`)
 
 #NaN imputation
 ##############
@@ -179,22 +179,22 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
     namesMNAR <- c()
     mechanism <- c("MCAR", "MAR", "MNAR")
     for(l in seq_along(partitions)){
-      
+
       for(colList in partitions[[l]]){
-    
+
         if (missTraits > length(colList)){
           missTraits <- length(colList)
         }
         
         for(mr in missingRates){
-          
+
           namesMCAR <- c(namesMCAR, paste("MCAR", names(partitions)[l], length(colList), mr ,sep = "/"))
           
           namesMNAR <- c(namesMNAR, paste("MNAR", names(partitions)[l], length(colList), mr ,sep = "/"))
     
           #univariate
           if(length(colList) == 2){
-            
+
             #MCAR
             missingMCAR <- delete_MCAR(Data$FinalData[,colList], mr, missTraits)
             
@@ -213,17 +213,18 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
             oneColum <- as.data.frame(Data$FinalData[,colList])
             names(oneColum) <- colList
             missingMCAR <- delete_MCAR(oneColum, mr, missTraits)
-            missingMNAR <- delete_MNAR_censoring(oneColum, mr, cols_mis = missTraits, where = "upper") #don't change where arg
+            missingMNAR <- delete_MNAR_censoring(oneColum, mr, 
+                                                 cols_mis = missTraits, where = "upper") #don't change where arg
           }
           
           if(length(colList) > 2){
-            
+
             if(length(colList) %% 2 == 0){
-              
+
               if(missTraits > length(colList)/2){
                 missTraits <- length(colList/2)
               }
-              
+
               #get randomly the number of columns having missing data 
               #randomColumns <- sample(length(colList)/2, 1)
               
@@ -242,29 +243,33 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
               cols_ctrlIndex <- c(1:length(colList))[-cols_misIndex]
               cols_ctrlIndex <- sample(cols_ctrlIndex, missTraits)
             }
-    
+
             #MCAR
             missingMCAR <- delete_MCAR(Data$FinalData[,colList], mr, colList, p_overall = TRUE)
-            
+
             #MNAR
             missingMNAR <- delete_MNAR_censoring(Data$FinalData[,colList], mr,
-                                                 cols_mis = cols_misIndex, where = "upper")#decide where argument                                                                                                                       we want to.
+                                                 cols_mis = cols_misIndex, where = "upper")#decide where argument                                                                                                                      we want to.
+
             }
           
           if(l > 3 & (length(colList) != 1)){
+
             namesMAR <- c(namesMAR, paste("MAR", names(partitions)[l], length(colList), mr ,sep = "/"))
             
             if(length(colList) == 2){
+
               #MAR
               cols_misIndex <- sample(1:2, 1)
               cols_ctrlIndex <- c(1,2)[-cols_misIndex]
               missingMAR <- delete_MAR_censoring(Data$FinalData[,colList], mr, 
                                                  cols_mis = cols_misIndex, cols_ctrl = cols_ctrlIndex, 
                                                  where = "upper") #don't change where arg
-              
+
             }
             
             else{
+
               #MAR
               missingMAR <- delete_MAR_censoring(Data$FinalData[,colList], mr, 
                                                  cols_mis = cols_misIndex, cols_ctrl = cols_ctrlIndex, 
@@ -272,8 +277,10 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
             }
             
             #Highlight the columns used to impute missing data
-            colnames(missingMAR)[cols_misIndex] <- paste0(colnames(missingMAR)[cols_misIndex], "/", 1:length(cols_misIndex))
-            colnames(missingMAR)[cols_ctrlIndex] <- paste0(colnames(missingMAR)[cols_ctrlIndex], "/", 1:length(cols_ctrlIndex))
+            colnames(missingMAR)[cols_misIndex] <- paste0(colnames(missingMAR)[cols_misIndex], "/", 
+                                                          1:length(cols_misIndex))
+            colnames(missingMAR)[cols_ctrlIndex] <- paste0(colnames(missingMAR)[cols_ctrlIndex], 
+                                                           "/", 1:length(cols_ctrlIndex))
             
             MAR <- c(MAR, list(missingMAR))
             
@@ -334,4 +341,5 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
 partitions <- dataPartition(Data)
 
 missingRates <- seq(0.05, 0.40, 0.15)
-missingData <- NaNImputation(missingRates, partitions, Data$TreeList$`0`, 3, 2,  save = F)
+missingData <- NaNImputation(missingRates, partitions, Data$TreeList$`0`, 3, 2,  save = T)
+

@@ -346,7 +346,6 @@ simData <- function(param_tree, dataframe, save = TRUE){
   dataframe$model[str_detect(dataframe$model, "^[aR]")] <- "ARD"
   
   
-  
   #Check if all the rows are filled correctly
   
   wrong <- which(dataframe$class == "continuous" &
@@ -375,7 +374,7 @@ simData <- function(param_tree, dataframe, save = TRUE){
   # Simulating phylogenies fails sometimes. Try until we are successful
   Extant <- FALSE
   while (!Extant) {
-    SimTree <- pbtree(b = birth, d = death, n = ntaxa, scale = 1, extant.only = FALSE) #why added extant.only ?
+    SimTree <- pbtree(b = birth, d = death, n = ntaxa, scale = 1, extant.only = TRUE)
     if(!is.null(SimTree)) {
       Extant <- TRUE
     }
@@ -398,7 +397,8 @@ simData <- function(param_tree, dataframe, save = TRUE){
   for(i in correlation_values){
     subdataTree <- SimTree
     wrong <- which(sum(dataframe$correlation == i) == 1 & dataframe$correlation == i & dataframe$class != "continuous" 
-                   & dataframe$uncorr_traits != dataframe$nbr_traits & dataframe$fraction_uncorr_traits != 0 & (dataframe$model != "OU1" | dataframe$model != "BM1"))
+                   & dataframe$uncorr_traits != dataframe$nbr_traits & 
+                     dataframe$fraction_uncorr_traits != 0 & (dataframe$model != "OU1" | dataframe$model != "BM1"))
     if(length(wrong) != 0){
       stop(paste("This line ", wrong, "is not filled correctly \n"))
     }
@@ -587,8 +587,15 @@ simData <- function(param_tree, dataframe, save = TRUE){
      
   }#close for loop
   
+  #convert the discrete columns in factors
+  DiscreteIndex <- grep("I.", colnames(FinalData))
+  FinalData[ ,DiscreteIndex] <- lapply(FinalData[ ,DiscreteIndex], factor)
+  
   FinalDiscreteData <- FinalData %>% select(starts_with("I"))
   FinlaContinuousData <- FinalData %>% select(starts_with("F"))
+  
+  
+  
   
   #Define list of object
   ######################
