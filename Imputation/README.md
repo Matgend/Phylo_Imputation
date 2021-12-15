@@ -7,8 +7,8 @@ This scripts matches a tree and a trait files and performs imputations using the
 `impute_mvMORPH.R`
 This scripts imputes missing continuous values using the mvMORPH package.
 
-`impute_discrTrait_phytools.R`
-This scripts imputes missing states of a single discrete trait using the phytools package.
+`impute_discrTrait.R`
+This scripts imputes missing states of a single discrete trait using the R package phytools or corHMM.
 
 `imputationApproaches.R`
 This script contains these imputation approaches: phytools, MICE, missForest, kNN, phylopars 
