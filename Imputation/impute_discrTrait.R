@@ -54,4 +54,12 @@ FitCorHMM <- corHMM(phy = SimTree, data = DataCorHMM, rate.cat = 1, model = "ER"
 FitCorHMM$AIC
 FitCorHMM$tip.states
 
-MostLikelyState <- apply(FitCorHMM$tip.states, 1, which.max)
+# Re-label states in case a state is completely missing
+ImputedStates <- FitCorHMM$tip.states
+UniqueStates <- as.numeric(unique(Trait[Trait != "?"]))
+if (length(UniqueStates) < Nstates) {
+  ImputedStates <- matrix(0, ncol = Nstates, nrow = nrow(ImputedStates))
+  ImputedStates[, UniqueStates] <- FitCorHMM$tip.states
+}
+
+MostLikelyState <- apply(ImputedStates, 1, which.max)
