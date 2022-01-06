@@ -449,4 +449,7 @@ for(r in 1:2){
 }
 
 
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes

@@ -112,10 +112,10 @@ simSigma <- function(Ntraits, Cor = NULL, Sigma2 = NULL, uncovTraits = NULL, Fra
   }
   return(Sigmas)
 }
-simSigma(3, uncovTraits = 0)
-simSigma(5, uncovTraits = 0, FracNocov = 0.6)
-simSigma(5, FracNocov = 0.6)
-simSigma(5, uncovTraits = 5)
+#simSigma(3, uncovTraits = 0)
+#simSigma(5, uncovTraits = 0, FracNocov = 0.6)
+#simSigma(5, FracNocov = 0.6)
+#simSigma(5, uncovTraits = 0)
 
 #' @title Simulate alpha matrix for morphological evolution
 #'
@@ -217,6 +217,11 @@ simDiscreteTraits <- function(Ntraits, Nstates, rate_model, max_rate, tree, equa
     tip_mat[, i] <- tip_states$tip_states
     node_mat[, i] <- tip_states$node_states # Do we need the ancestral states?
   }
+  
+  #get state starting to 0
+  tip_mat <- tip_mat - 1
+  node_mat <- node_mat - 1
+  
   return(list(tip_mat = tip_mat, node_mat = node_mat))
 }
 #simDiscreteTraits(4, c(2,3,3,4), "ER" ,0.9, SimTree, equal = F, Ordinal = F)
@@ -298,18 +303,9 @@ ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subcl
   return(dataframe)
 }
 
-# # Scaled continuous traits
-# #########################
-# #Scale traits between 0 and 10 
-# #(https://github.com/GitTFJ/Handling-missing-values-in-trait-data/blob/main/Script1_SimulateData_V1.0.R)
-# rangeScale <- function(x, range){((x-min(x))/(max(x)-min(x))*range)}
-# ScaledTraits <- apply(ContinuousData$data, MARGIN = 2, rangeScale, 10)
-# ScaledTraits <- as.data.frame(ScaledTraits)
-# ScaledTraits
-
 
 #as first argument, param_tree(Birth, Death, Ntaxa), second arguments is a dataframe, third argument save in rds format
-simData <- function(param_tree, dataframe, save = TRUE){
+simData <- function(param_tree, dataframe, save = NULL){
   
   if(ncol(dataframe) != 8){
     stop("The number of columns should be equal to 8.")
@@ -410,6 +406,11 @@ simData <- function(param_tree, dataframe, save = TRUE){
     #build a subset of traits being correlated together
     subdata <- subset(dataframe, dataframe$correlation == i)
     
+    #extract rows in the dataframe corresponding to correlation group
+    rows <- which(dataframe$correlation == i)
+    #append row number in dataframe
+    subdata <- cbind(subdata, rows)
+    
     #rescale phylogeny
     lambdaCheck <- mean(subdata$lambda)
     if(lambdaCheck != 1){
@@ -438,7 +439,7 @@ simData <- function(param_tree, dataframe, save = TRUE){
                                              alpha = Alphas))
         #change columns names
         ContinuousData <- as.data.frame(ContinuousData)
-        colnames(ContinuousData) <- sprintf("F%s.%s", seq(1:subdata$nbr_traits), i)
+        colnames(ContinuousData) <- sprintf("F%s.%s/%s", seq(1:subdata$nbr_traits), i, subdata$row)
         FinalData <- cbind(FinalData, ContinuousData)
       }
       else{
@@ -452,7 +453,7 @@ simData <- function(param_tree, dataframe, save = TRUE){
 
         #change columns names
         DiscreteData$tip_mat <- as.data.frame(DiscreteData$tip_mat)
-        colnames(DiscreteData$tip_mat) <- sprintf("I%s.%s", seq(1:subdata$nbr_traits), i)
+        colnames(DiscreteData$tip_mat) <- sprintf("I%s.%s/%s", seq(1:subdata$nbr_traits), i, subdata$row)
         
         FinalData <- cbind(FinalData, DiscreteData$tip_mat)
       }
@@ -464,6 +465,8 @@ simData <- function(param_tree, dataframe, save = TRUE){
         stop(paste("This line ", wrong, "is not filled correctly \n"))
       }
       
+      ContiRows <- rep(subdata$rows[subdata$class == "continuous"], 
+                       subdata$nbr_traits[subdata$class == "continuous"]) #get the row index in the dataframe
       Ntraits <- sum(subdata$nbr_traits)
       model <- "BM1"
       indexBM <- NULL
@@ -489,17 +492,18 @@ simData <- function(param_tree, dataframe, save = TRUE){
         }
         if(uncorrTraitsBM == 0){
           #in case no uncovTraits in the BM model.
-          indexBM <- sample((1 + uncorrTraitsOU):Ntraits, Ntraits - sum(subdata$nbr_trait[subdata$model == "OU1"]), replace = FALSE)
+          indexBM <- sample((1 + uncorrTraitsOU):Ntraits, 
+                            Ntraits - sum(subdata$nbr_trait[subdata$model == "OU1"]), replace = FALSE)
         }
         # set 0 to diagonal for BM1
         diag(Alphas)[indexBM] <- 1e-5
       }
-      
+
       if(sum(subdata$model == "OU1") == nrow(subdata)){
         Alphas <- simAlpha(Ntraits)
         model <- "OU1"
       }
-
+      
       #Simulate data
       ContinuousData <- mvSIM(tree = subdataTree,
                               model = model,
@@ -566,15 +570,18 @@ simData <- function(param_tree, dataframe, save = TRUE){
         DiscreteData <- ChangeContinuousTraitInDiscrete(ContinuousData, indexColumConvert, Nstates, class)
         
         #change columns names
-        colnames(DiscreteData) <- sprintf("F%s.%s", seq(1:sum(subdata$nbr_traits)), i)
-        colnames(DiscreteData)[indexColumConvert] <- sprintf("I%s.%s", seq(1:sum(discreteSubdata$nbr_traits)), i)
+        colnames(DiscreteData) <- sprintf("F%s.%s/%s", seq(1:sum(subdata$nbr_traits)), i, ContiRows)
+        discreteRows <- rep(discreteSubdata$rows, discreteSubdata$nbr_traits)
+        colnames(DiscreteData)[indexColumConvert] <- sprintf("I%s.%s/%s", 
+                                                             seq(1:sum(discreteSubdata$nbr_traits)), i, discreteRows)
         FinalData <- cbind(FinalData, DiscreteData)
       }
 
       else{
+        
         #change columns names
         ContinuousData <- as.data.frame(ContinuousData)
-        colnames(ContinuousData) <- sprintf("F%s.%s", seq(1:sum(subdata$nbr_traits)), i)
+        colnames(ContinuousData) <- sprintf("F%s.%s/%s", seq(1:sum(subdata$nbr_traits)), i, ContiRows)
         FinalData <- cbind(FinalData, ContinuousData)
       }
     }
@@ -587,14 +594,34 @@ simData <- function(param_tree, dataframe, save = TRUE){
      
   }#close for loop
   
+  #Standardize continuous traits mean = 0  and sd = 1
+  ContiIndex <- grep("F.", colnames(FinalData))
+  FinalData[, ContiIndex] <- scale(FinalData[, ContiIndex])
+  
   #convert the discrete columns in factors
   DiscreteIndex <- grep("I.", colnames(FinalData))
   FinalData[ ,DiscreteIndex] <- lapply(FinalData[ ,DiscreteIndex], factor)
   
+  #add levels in factor if number of levels = 1
+  for (c in 1:ncol(FinalData[ ,DiscreteIndex])){
+    if(length(levels(FinalData[ ,DiscreteIndex][,c])) == 1){
+      if(levels(FinalData[ ,DiscreteIndex][,c]) == "0"){
+        FinalData[ ,DiscreteIndex][,c] <- factor(FinalData[ ,DiscreteIndex][,c], levels = c("0", "1"))
+      }
+      else{
+        colName <- names(FinalData[ ,DiscreteIndex])[c]
+        row <- as.numeric(str_extract(colName, "(?<=\\/)\\d+"))
+        Nstates <- Data$dataframe[row, "states"]
+        FinalData[ ,DiscreteIndex][,c] <- factor(FinalData[ ,DiscreteIndex][,c], 
+                                                 levels = as.character(0:(Nstates-1)))
+        #print(levels(FinalData[ ,DiscreteIndex][,c]))
+      }
+    }
+  }
+  
+  
   FinalDiscreteData <- FinalData %>% select(starts_with("I"))
   FinlaContinuousData <- FinalData %>% select(starts_with("F"))
-  
-  
   
   
   #Define list of object
@@ -605,15 +632,16 @@ simData <- function(param_tree, dataframe, save = TRUE){
   
   #Save data
   ##########
-  if(save){
-  save(Data, file="simulatedData.RData")
+  if(!is.null(save)){
+  save(Data, file = paste0(save, ".RData"))
+    
   }
   
   return(Data)
     
 } #close function
 
-data <- read.csv("DataTest.csv", header = TRUE, sep = ";")
-tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 40)
-new_data <- simData(tree_arg, data, save = TRUE)
+#data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/DataTest.csv", header = TRUE, sep = ";")
+#tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 40)
+#new_data <- simData(tree_arg, data, save = "test")
 

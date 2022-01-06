@@ -9,28 +9,31 @@ library(phangorn)
 
 
 # load simulated data
-setwd("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/")
+setwd("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/Phylo_Imputation/")
 load("simulatedData.RData")
+load("simulatedDataSmall.RData")
 
+ncol(Data$FinalData)
+Data$FinalData
 
 splitDiscAndContiColnames <- function(columnNames){
   #columnNames: vector of characters (columns names of the dataset)
   #return: 2 nested lists one with discrete and the second with continuous column names 
   
   #discrete traits
-  pattern <- "I.\\.."
+  pattern <- "I.\\...."
   DiscreteColnames <- str_extract(columnNames, pattern)
   DiscreteColnames <- DiscreteColnames[!is.na(DiscreteColnames)]
 
   #continuous traits
-  pattern <- "F.\\.."
+  pattern <- "F.\\...."
   ContiColnames <- str_extract(columnNames, pattern)
   ContiColnames <- ContiColnames[!is.na(ContiColnames)]
   
   return(list(Discrete = DiscreteColnames, Continuous = ContiColnames))
 }
 
-splitDiscAndContiColnames(colnames(Data$DiscreteData))
+splitDiscAndContiColnames(colnames(Data$FinalData))
 
 
 #Subset generation
@@ -61,8 +64,7 @@ dataPartition <- function(Data){
   for (c in correlation_values){
     
     #extract name of the columns
-    #pattern <- paste("..\\.", c, sep = "")
-    pattern <- paste("[:alnum:]*\\.", c, sep = "")
+    pattern <- paste("[:alnum:]*\\.", c,"/[:digit:]", sep = "")
     subColnames <- str_extract(colnames(Data$FinalData), pattern)
     subColnames <- subColnames[!is.na(subColnames)]
     
@@ -74,22 +76,16 @@ dataPartition <- function(Data){
     CorrSubColnames <- CorrSubColnames[!is.na(CorrSubColnames)]
     ContiTraits <- splitDiscAndContiColnames(CorrSubColnames)
     
-    if(length(CorrSubColnames) != 0){
-      #append correlated traits cluster
-      #name <- sprintf("CorrDiscrContiTraitsC%s", c)
-      #MixedCorrelatedTraits <- c(MixedCorrelatedTraits, list(Data$FinalData[, CorrSubColnames]))
+    if(length(CorrSubColnames) != 0 & length(grep("F.", CorrSubColnames)) >= 1 & 
+       length(grep("I.", CorrSubColnames)) >= 1){
       MixedCorrelatedTraits <- c(MixedCorrelatedTraits, list(CorrSubColnames))
     }
     
     if(length(ContiTraits$Discrete) != 0){
-      #name <- sprintf("CorrDiscreteTraitsC%s", c)
-      #CorrDiscreteTraits <- c(CorrDiscreteTraits, list(Data$FinalData[,ContiTraits$Discrete]))
       CorrDiscreteTraits <- c(CorrDiscreteTraits, list(ContiTraits$Discrete))
     }
     
     if(length(ContiTraits$Continuous) != 0){
-      #name <- sprintf("CorrContinuousTraitsC%s", c)
-      #CorrContinuousTraits <- c(CorrContinuousTraits, list(Data$FinalData[,ContiTraits$Continuous]))
       CorrContinuousTraits <- c(CorrContinuousTraits, list(ContiTraits$Continuous))
     }
     
@@ -100,14 +96,10 @@ dataPartition <- function(Data){
       IndeTraits <- splitDiscAndContiColnames(IndeSubColnames)
       
       if(length(IndeTraits$Discrete) != 0){
-        #name <- paste0("IndDiscreteTraitsC", c)
-        #IndDiscreteTraits <- c(IndDiscreteTraits, list(Data$FinalData[,IndeTraits$Discrete]))
         IndDiscreteTraits <- c(IndDiscreteTraits, list(IndeTraits$Discrete))
       }
       
       if(length(IndeTraits$Continuous) != 0){
-        #name <- paste0("IndContinuousTraitsC", c)
-        #IndContinousTraits <- c(IndContinousTraits, list(Data$FinalData[,IndeTraits$Continuous]))
         IndContinousTraits <- c(IndContinousTraits, list(IndeTraits$Continuous))
       }
     }
@@ -119,8 +111,8 @@ dataPartition <- function(Data){
 }
 
 #Split data
-partitions <- dataPartition(Data)
-
+#partitions <- dataPartition(Data)
+#partitions
 
 #' @title Identify species for phylogenetic NAs
 #'
@@ -186,17 +178,21 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
           missTraits <- length(colList)
         }
         
-        for(mr in missingRates){
+        for(mr in 1:length(missingRates)){
 
-          namesMCAR <- c(namesMCAR, paste("MCAR", names(partitions)[l], length(colList), mr ,sep = "/"))
+          namesMCAR <- c(namesMCAR, paste("MCAR", names(partitions)[l], length(colList), missingRates[mr] ,sep = "/"))
           
-          namesMNAR <- c(namesMNAR, paste("MNAR", names(partitions)[l], length(colList), mr ,sep = "/"))
-    
+          namesMNAR <- c(namesMNAR, paste("MNAR", names(partitions)[l], length(colList), missingRates[mr] ,sep = "/"))
+          
           #univariate
           if(length(colList) == 2){
+            
+            if(missingRates[1] == missingRates[mr]){
+              colMis <- sample(colList, missTraits)
+            }
 
             #MCAR
-            missingMCAR <- delete_MCAR(Data$FinalData[,colList], mr, missTraits)
+            missingMCAR <- delete_MCAR(Data$FinalData[,colList, drop = FALSE], missingRates[mr], cols_mis = colMis)
             
             #MNAR
             #OneOrTwoColumns <- sample(1:2, 1) #want MNAR values in both columns or not
@@ -204,17 +200,17 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
             #  cols_misIndex <- c(1,2)
             #}
             #cols_misIndex <- sample(2, 1)
-            missingMNAR <- delete_MNAR_censoring(Data$FinalData[,colList], mr, 
-                                                 cols_mis = missTraits, where = "upper") #don't change where arg
+            missingMNAR <- delete_MNAR_censoring(Data$FinalData[,colList, drop = FALSE], missingRates[mr], 
+                                                 cols_mis = colMis, where = "upper") #don't change where arg
             
           }
           
           if(length(colList) == 1){
-            oneColum <- as.data.frame(Data$FinalData[,colList])
+            oneColum <- as.data.frame(Data$FinalData[,colList, drop = FALSE])
             names(oneColum) <- colList
-            missingMCAR <- delete_MCAR(oneColum, mr, missTraits)
-            missingMNAR <- delete_MNAR_censoring(oneColum, mr, 
-                                                 cols_mis = missTraits, where = "upper") #don't change where arg
+            missingMCAR <- delete_MCAR(oneColum, missingRates[mr], missTraits)
+            missingMNAR <- delete_MNAR_censoring(oneColum, missingRates[mr], 
+                                                 cols_mis = colMis, where = "upper") #don't change where arg
           }
           
           if(length(colList) > 2){
@@ -227,42 +223,50 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
 
               #get randomly the number of columns having missing data 
               #randomColumns <- sample(length(colList)/2, 1)
-              
-              cols_misIndex <- sample(length(colList), missTraits)
-              cols_ctrlIndex <- c(1:length(colList))[-cols_misIndex]
-              cols_ctrlIndex <- sample(cols_ctrlIndex, missTraits)
+              if(missingRates[1] == missingRates[mr]){
+                cols_misIndex <- sample(length(colList), missTraits)
+                cols_ctrlIndex <- c(1:length(colList))[-cols_misIndex]
+                cols_ctrlIndex <- sample(cols_ctrlIndex, missTraits)
+              }
             }
             if(length(colList) %% 2 != 0 ){
+              
               
               if(missTraits > (length(colList)-1)/2){
                 missTraits <- (length(colList)-1)/2
               }
-              #get randomly the number of columns having missing data 
-              #randomColumns <- sample((length(colList)-1)/2, 1)
-              cols_misIndex <- sample(length(colList), missTraits)
-              cols_ctrlIndex <- c(1:length(colList))[-cols_misIndex]
-              cols_ctrlIndex <- sample(cols_ctrlIndex, missTraits)
+              if(missingRates[1] == missingRates[mr]){
+                #get randomly the number of columns having missing data 
+                #randomColumns <- sample((length(colList)-1)/2, 1)
+                cols_misIndex <- sample(length(colList), missTraits)
+                cols_ctrlIndex <- c(1:length(colList))[-cols_misIndex]
+                cols_ctrlIndex <- sample(cols_ctrlIndex, missTraits)
+                }
             }
 
             #MCAR
-            missingMCAR <- delete_MCAR(Data$FinalData[,colList], mr, colList, p_overall = TRUE)
+            missingMCAR <- delete_MCAR(Data$FinalData[,colList], missingRates[mr], 
+                                       cols_mis = cols_misIndex, p_overall = TRUE)
 
             #MNAR
-            missingMNAR <- delete_MNAR_censoring(Data$FinalData[,colList], mr,
+            missingMNAR <- delete_MNAR_censoring(Data$FinalData[,colList], missingRates[mr],
                                                  cols_mis = cols_misIndex, where = "upper")#decide where argument                                                                                                                      we want to.
 
             }
           
           if(l > 3 & (length(colList) != 1)){
 
-            namesMAR <- c(namesMAR, paste("MAR", names(partitions)[l], length(colList), mr ,sep = "/"))
+            namesMAR <- c(namesMAR, paste("MAR", names(partitions)[l], length(colList), missingRates[mr], sep = "/"))
             
             if(length(colList) == 2){
 
               #MAR
-              cols_misIndex <- sample(1:2, 1)
-              cols_ctrlIndex <- c(1,2)[-cols_misIndex]
-              missingMAR <- delete_MAR_censoring(Data$FinalData[,colList], mr, 
+              if(missingRates[1] == missingRates[mr]){
+                cols_misIndex <- sample(1:2, 1)
+                cols_ctrlIndex <- c(1,2)[-cols_misIndex]
+              }
+              
+              missingMAR <- delete_MAR_censoring(Data$FinalData[,colList], missingRates[mr], 
                                                  cols_mis = cols_misIndex, cols_ctrl = cols_ctrlIndex, 
                                                  where = "upper") #don't change where arg
 
@@ -271,16 +275,16 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
             else{
 
               #MAR
-              missingMAR <- delete_MAR_censoring(Data$FinalData[,colList], mr, 
+              missingMAR <- delete_MAR_censoring(Data$FinalData[,colList], missingRates[mr], 
                                                  cols_mis = cols_misIndex, cols_ctrl = cols_ctrlIndex, 
                                                  where = "upper") #decide where argument                                                                                                                        we want to.
             }
             
             #Highlight the columns used to impute missing data
-            colnames(missingMAR)[cols_misIndex] <- paste0(colnames(missingMAR)[cols_misIndex], "/", 
-                                                          1:length(cols_misIndex))
-            colnames(missingMAR)[cols_ctrlIndex] <- paste0(colnames(missingMAR)[cols_ctrlIndex], 
-                                                           "/", 1:length(cols_ctrlIndex))
+            #colnames(missingMAR)[cols_misIndex] <- paste0(colnames(missingMAR)[cols_misIndex], "/", 
+                                                         # 1:length(cols_misIndex))
+            #colnames(missingMAR)[cols_ctrlIndex] <- paste0(colnames(missingMAR)[cols_ctrlIndex], 
+                                                         #  "/", 1:length(cols_ctrlIndex))
             
             MAR <- c(MAR, list(missingMAR))
             
@@ -307,12 +311,12 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
       }
       
       lengthTips <- c(lengthTips, length(tips))
-      for(mr in missingRates){
-      namesTrees <- c(namesTrees, paste("PhyloNaN", mt, mr, sep = "/"))
+      for(mr in 1:length(missingRates)){
+      namesTrees <- c(namesTrees, paste("PhyloNaN", length(tips), missingRates[mr], sep = "/"))
       
       #MCAR
-      #randomColums <- sample(ncol(Data$FinalData), missTraits)
-      missingMCAR <- delete_MCAR(Data$FinalData[tips, ], mr, 1:ncol(Data$FinalData), p_overall = TRUE)
+      #cols_misIndex <- sample(ncol(Data$FinalData), missTraits)
+      missingMCAR <- delete_MCAR(Data$FinalData[tips, ], missingRates[mr], 1:ncol(Data$FinalData), p_overall = TRUE)
       
       PhyloNaN <- c(PhyloNaN, list(missingMCAR))
       }
@@ -331,15 +335,17 @@ NaNImputation <- function(missingRates, partitions, tree, missTraits, replicates
   #Save data
   ##########
   if(save){
-    save(NaNImputed, file="DataNaN.RData")
+    save(NaNImputed, file="DataNaNSmall.RData")
   }
   
   return(NaNImputed)
 }
-
+#names(Data$FinalData)
 #Split data
 partitions <- dataPartition(Data)
-
+partitions
 missingRates <- seq(0.05, 0.40, 0.15)
-missingData <- NaNImputation(missingRates, partitions, Data$TreeList$`0`, 3, 2,  save = T)
+missingData <- NaNImputation(missingRates, partitions, Data$TreeList$`0`, 1, 2,  save = T)
+#names(missingData$DataNaN$`1`$MCAR$`MCAR/AllTraits/26/0.05`)
+
 
