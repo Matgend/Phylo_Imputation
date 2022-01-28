@@ -6,12 +6,12 @@
 #install.packages("tidyverse")
 
 
-library(mvMORPH)
-library(phytools)
-library(Matrix)
-library(castor)
-library(geiger)
-library(tidyverse)
+# library(mvMORPH)
+# library(phytools)
+# library(Matrix)
+# library(castor)
+# library(geiger)
+# library(tidyverse)
 
 #' @title Simulate variance-covariance matrix for morphological evolution
 #'
@@ -237,7 +237,6 @@ ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
   # - intervals: states are fairly split
   # - ordinal: ordered states, split is random
   # - nominal_no: split is random, no order (shuffled)
-  # - nominal_o: 
   # return a vector of discrete value corresponding of continuous value in a same interval.
   
   if(subclass != "non_eq_nominal" & subclass != "ordinal" & subclass != "interval" & subclass != "eq_nominal"){
@@ -298,12 +297,16 @@ ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subcl
   dataframe <- as.data.frame(Matrix)
   
   for(ci in 1:length(columnsIndex)) {
-    dataframe[, columnsIndex[ci]] <- ConvertContinousInDiscreteValues(dataframe[, columnsIndex[ci]], Nstates[ci], subclass[ci])
+    dataframe[, columnsIndex[ci]] <- ConvertContinousInDiscreteValues(
+      dataframe[, columnsIndex[ci]], Nstates[ci], subclass[ci])
   }
   return(dataframe)
 }
 
-
+#dataframe <- data
+#dataframe
+#param_tree <- tree_arg
+#param_tree
 #as first argument, param_tree(Birth, Death, Ntaxa), second arguments is a dataframe, third argument save in rds format
 simData <- function(param_tree, dataframe, save = NULL){
   
@@ -313,7 +316,8 @@ simData <- function(param_tree, dataframe, save = NULL){
   
   #Rename columns of the data frame
   ################################
-  newNames <-  c("nbr_traits", "class", "model", "states", "correlation", "uncorr_traits", "fraction_uncorr_traits", "lambda")
+  newNames <-  c("nbr_traits", "class", "model", "states", "correlation", 
+                 "uncorr_traits", "fraction_uncorr_traits", "lambda")
   names(dataframe) <- newNames
   #in subclass there are, continuous, ordinal, interval(same quantity), nominal(no order).
   # uncorr_traits >= 0, 0<x<=1 fraction of uncovariant traits among the correlated group of traits, number of uncorrelated should be >=1. 
@@ -371,7 +375,7 @@ simData <- function(param_tree, dataframe, save = NULL){
   Extant <- FALSE
   while (!Extant) {
     SimTree <- pbtree(b = birth, d = death, n = ntaxa, scale = 1, extant.only = TRUE)
-    if(!is.null(SimTree)) {
+    if(!is.null(SimTree)){
       Extant <- TRUE
     }
   }
@@ -593,36 +597,42 @@ simData <- function(param_tree, dataframe, save = NULL){
     
      
   }#close for loop
-  
-  #Standardize continuous traits mean = 0  and sd = 1
-  ContiIndex <- grep("F.", colnames(FinalData))
-  FinalData[, ContiIndex] <- scale(FinalData[, ContiIndex])
-  
-  #convert the discrete columns in factors
-  DiscreteIndex <- grep("I.", colnames(FinalData))
-  FinalData[ ,DiscreteIndex] <- lapply(FinalData[ ,DiscreteIndex], factor)
-  
-  #add levels in factor if number of levels = 1
-  for (c in 1:ncol(FinalData[ ,DiscreteIndex])){
-    if(length(levels(FinalData[ ,DiscreteIndex][,c])) == 1){
-      if(levels(FinalData[ ,DiscreteIndex][,c]) == "0"){
-        FinalData[ ,DiscreteIndex][,c] <- factor(FinalData[ ,DiscreteIndex][,c], levels = c("0", "1"))
-      }
-      else{
-        colName <- names(FinalData[ ,DiscreteIndex])[c]
-        row <- as.numeric(str_extract(colName, "(?<=\\/)\\d+"))
-        Nstates <- Data$dataframe[row, "states"]
-        FinalData[ ,DiscreteIndex][,c] <- factor(FinalData[ ,DiscreteIndex][,c], 
-                                                 levels = as.character(0:(Nstates-1)))
-        #print(levels(FinalData[ ,DiscreteIndex][,c]))
-      }
-    }
+
+  row.names(FinalData) <- SimTree$tip.label
+
+  if(length(grep("F.", colnames(FinalData))) > 0){
+    #Standardize continuous traits mean = 0  and sd = 1
+    ContiIndex <- grep("F.", colnames(FinalData))
+    FinalData[, ContiIndex] <- scale(FinalData[, ContiIndex])
   }
   
+  if(length(grep("I.", colnames(FinalData))) > 0){
+    #convert the discrete columns in factors
+    DiscreteIndex <- grep("I.", colnames(FinalData))
+    FinalData[ ,DiscreteIndex] <- lapply(FinalData[ ,DiscreteIndex], factor)
+    
+    #add levels in factor if number of levels = 1
+    for (c in 1:ncol(FinalData[ ,DiscreteIndex])){
+      if(length(levels(FinalData[ ,DiscreteIndex][,c])) == 1){
+        if(levels(FinalData[ ,DiscreteIndex][,c]) == "0"){
+          FinalData[ ,DiscreteIndex][,c] <- factor(FinalData[ ,DiscreteIndex][,c], levels = c("0", "1"))
+        }
+        else{
+          colName <- names(FinalData[ ,DiscreteIndex])[c]
+          row <- as.numeric(str_extract(colName, "(?<=\\/)\\d+"))
+          Nstates <- dataframe[row, "states"]
+          FinalData[ ,DiscreteIndex][,c] <- factor(FinalData[ ,DiscreteIndex][,c], 
+                                                   levels = as.character(0:(Nstates-1)))
+          #print(levels(FinalData[ ,DiscreteIndex][,c]))
+        }
+      }
+    }
+  }  
+   
   
   FinalDiscreteData <- FinalData %>% select(starts_with("I"))
   FinlaContinuousData <- FinalData %>% select(starts_with("F"))
-  
+   
   
   #Define list of object
   ######################
@@ -630,6 +640,8 @@ simData <- function(param_tree, dataframe, save = NULL){
                AlphaMatrices = AlphasList, Thetas = ThetasList, SigmaMatrices = SigmasList, TreeList = TreeList, 
                PhyloParam = param_tree, dataframe = dataframe)
   
+  print(Data)
+  print("ok")
   #Save data
   ##########
   if(!is.null(save)){
@@ -642,6 +654,10 @@ simData <- function(param_tree, dataframe, save = NULL){
 } #close function
 
 #data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/DataTest.csv", header = TRUE, sep = ";")
+#data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DataTest2.csv", header = TRUE, sep = ";")
 #tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 40)
-#new_data <- simData(tree_arg, data, save = "test")
+#tree_arg
+#new_data <- simData(tree_arg, data, save = NULL)
+#data
+
 

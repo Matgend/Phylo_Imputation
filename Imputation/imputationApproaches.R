@@ -1,19 +1,19 @@
 #install.packages("VIM")
-#install.packages("fastDummies")
-library(fastDummies)
-library(VIM)
-library(laeken) #for weigthedMean
-library(mice)
-library(ape)
-library(PVR)
-library(missForest)
-library(tidyverse)
-library(phytools)
-library(mvMORPH)
-library(geiger)
-library(tibble)
-library(Rphylopars)
-library(corHMM)
+# #install.packages("fastDummies")
+# library(fastDummies)
+# library(VIM)
+# library(laeken) #for weigthedMean
+# library(mice)
+# library(ape)
+# library(PVR)
+# library(missForest)
+# library(tidyverse)
+# library(phytools)
+# library(mvMORPH)
+# library(geiger)
+# library(tibble)
+# library(Rphylopars)
+# library(corHMM)
 #install.packages("snow") #for windows 
 
 #Categorical in dummy
@@ -27,12 +27,7 @@ library(corHMM)
 #'
 #' @param NaNData data.frame of one ore several factors columns 
 #' @return a data.frame in which each variable are represented as dummies.
-#NaNData <- missingData
-#NaNData <- onetestCat
 generateDummyVariables <- function(NaNData){
-  #'NaNData: data.frame containing missing NAs
-  #'return: the dummy matrix of the categorical variables
-  
   
   Nstates <- as.numeric(tail(levels(NaNData[,1]), n = 1)) + 1
   
@@ -64,14 +59,6 @@ generateDummyVariables <- function(NaNData){
   return(dummy)
   
 }
-#testCat <- NaNImputed$DataNaN$`1`$MAR$`MAR/CorrDiscreteTraits/4/0.35`
-#onetestCat <- as.data.frame(testCat[,2])
-#rownames(onetestCat) <- rownames(testCat)
-#colnames(onetestCat) <- "I2.1"
-#generateDummyVariables(testCat)
-#generateDummyVariables(onetestCat)
-#generateDummyVariables(missingData)
-
 
 # Generating eigenvectors
 #########################
@@ -85,8 +72,6 @@ generateDummyVariables <- function(NaNData){
 #' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors which correspond to the 
 #' phylogenetic inertia
 #' @return a data.frame in which each colum represent an eigenvector
-
-
 get_eigenvec <- function(tree, variance_fraction){
   
   decomp <- PVRdecomp(tree, type = "newick") #produces object of class 'PVR'
@@ -117,65 +102,6 @@ get_eigenvec <- function(tree, variance_fraction){
 }
 
 
-#Discrete traits imputation
-###########################
-
-calculateAIC <- function(tree, missingData, model){
-  out <- tryCatch(
-    {
-      message("Use corHMM")
-      
-      #add the tip names in the dataframe
-      missingData <- cbind(species = row.names(missingData), missingData)
-      
-      #convert missingData as character
-      missingData[,2] <- as.character(missingData[,2])
-      missingData[,2][which(is.na(missingData[,2]))] <- "?" #replace NA by "?"because corHMM don't like it
-      #Define the rate model
-      model <- "ER"
-      FitCorHMM <- corHMM::corHMM(phy = tree, data = missingData, model = model, 
-                                  rate.cat = 1, get.tip.states = TRUE)
-      
-      #Calculate AIC
-      AIC <- FitCorHMM$AIC
-      FitCorHMM
-      list(AIC = AIC, map = FitCorHMM$tip.states, index = 0)
-      
-    },
-    error = function(cond){
-      
-      message("Use make.simmap")
-
-      missingData[,1] <- NULL
-      missingData[,1] <- as.factor(missingData[,1])
-      
-      #extract number of states
-      Nstates <- as.numeric(tail(levels(missingData[,1]), n = 1)) + 1
-      
-      # We need a matrix of prior probabilities for tip states
-      StateMat <- generateDummyVariables(missingData)
-      colnames(StateMat) <- 0:(ncol(StateMat)-1)
-      NaNrowsIndex <- which(is.na(StateMat[,1]))
-      StateMat[NaNrowsIndex, ] <- 1/ncol(StateMat)
-      
-      #Define the rate model
-      SimmapTrees <- make.simmap(tree = tree, x = as.matrix(StateMat),
-                                 nsim = 100, model = model, pi = "estimated")
-      
-      #Calculate AIC
-      LogLik <- SimmapTrees[[1]]$logL
-      K <- attr(SimmapTrees[[1]]$logL, "df") #get the number of degree of freedom (= the nbr of parameter in the model)
-      AIC <- 2 * K - 2 * LogLik
-      
-      SimmapDescribe <- describe.simmap(SimmapTrees, plot = FALSE)
-      
-      list(AIC = AIC, map = SimmapDescribe, index = 1)
-    }
-  )
-  return(out)
-}
-
-
 #' @title Imputation of missing data for one discrete trait
 #' 
 #' @description This function imputes missing data for discrete traits using the R package phytools. The first step is to 
@@ -184,16 +110,12 @@ calculateAIC <- function(tree, missingData, model){
 #' for three models(ER, SYM and ARD) and select the one having the smallest AIC. Third step is to run the function 
 #' describe.simmap which summerize the reuslts obtained with make.simmap
 #'
-#' @usage imputeOneDiscreteTrait(trait)
+#' @usage imputeOneDiscreteTrait(trait, Data)
 #'
 #' @param missingData data.frame of 1 factor column containing NAs
-
+#' @param Data simulated Data object
 #' @return a data.frame of 1 factor column with the NAs replaced by values. 
-#missing <- NaNImputed$DataNaN$`1`$MCAR$`MCAR/IndDiscreteTraits/3/0.35`
-#missingData <- missingData[ ,2, drop = F]
-#missingData <- NaNImputed$DataNaN$`1`$MCAR$`MCAR/IndDiscreteTraits/3/0.35`
-#missingData <- partition[,2, drop = F]
-imputeOneDisceteTrait <- function(missingData){
+imputeOneDiscreteTrait <- function(missingData, Data){
 
   #check if tips in matrix traits are ordered as in the tree
   if(!setequal(Data$TreeList$`0`$tip.label, row.names(missingData))){
@@ -207,7 +129,7 @@ imputeOneDisceteTrait <- function(missingData){
   
   #if only one state represented in the trait
   if(sum(!is.na(unique(missingData[, 1]))) == 1){
-    print("one state")
+    #print("one state")
     state <- missingData[which(!is.na(missingData)), ][1]
     missingData[which(is.na(missingData)), ] <- state
     return(missingData)
@@ -218,9 +140,9 @@ imputeOneDisceteTrait <- function(missingData){
   if(Data$dataframe[row,"class"] == "ordinal"){
     print("ordinal trait")
     missingData[, 1] <- as.numeric(missingData[, 1]) - 1
-    print(missingData)
+    #print(missingData)
     missingData <- imputeContinousTraits(missingData)
-    print(missingData)
+    #print(missingData)
     missingData[, 1] <- round(missingData[, 1], 0)
     return(missingData)
   }
@@ -267,11 +189,6 @@ imputeOneDisceteTrait <- function(missingData){
   
   return(MostLikelyState)
 }
-#missingData <- NaNImputed$DataNaN$`1`$MCAR$`MCAR/IndDiscreteTraits/3/0.05`[,2, drop = F]
-#missingData <- NaNImputed$DataNaN$`1`$MCAR$`MCAR/IndDiscreteTraits/3/0.05`[,2, drop = F]
-#onetestCat <- missingData
-#onetestCat
-#imputeOneDisceteTrait(missingData)
 
 
 #' @title Imputation of missing data for discrete traits, mandatory phylogenetic information  
@@ -281,12 +198,9 @@ imputeOneDisceteTrait <- function(missingData){
 #' @usage imputeDiscreteTrait(trait)
 #'
 #' @param missingData data.frame of 1 or more factor columns containing NAs
-#' 
+#' @param Data simulated Data object
 #' @return a data.frame of 1 or more factor columns with the NAs replaced by values. 
-
-#missingData[,1] <- 1:nrow(missingData)
-#missingData
-imputeDiscreteTraits <- function(missingData){
+imputeDiscreteTraits <- function(missingData, Data){
 
 
   #select the columns with missing values
@@ -296,15 +210,12 @@ imputeDiscreteTraits <- function(missingData){
   for(i in NaNColIndex){
     #print(i)
     #print(missingData[,i])
-    missingData[, i] <- imputeOneDisceteTrait(missingData[, i, drop = FALSE])
+    missingData[, i] <- imputeOneDiscreteTrait(missingData[, i, drop = FALSE], Data)
     #print(missingData[,i])
   }
   
   return(missingData)
 }
-
-#trait <- NaNImputed$DataNaN$`1`$MCAR$`MCAR/IndDiscreteTraits/3/0.05`
-#imputeDiscreteTraits(missingData)
 
 #impute continuous traits (Rphylopars)
 ######################################
@@ -315,11 +226,10 @@ imputeDiscreteTraits <- function(missingData){
 #' @usage imputeContinous(missingData, tree)
 #'
 #' @param missingData data.frame of 1 or more numeric columns containing NAs
-
+#' @param Data simulated Data object
 #' @return a data.frame of 1 or more numeric columns with the NAs replaced by values.
-#missingData <- testConti
 
-imputeContinousTraits <- function(missingData){
+imputeContinousTraits <- function(missingData, Data){
   
   #get the right tree
   correlationGroup <- as.numeric(str_extract(colnames(missingData), "(?<=\\.)\\d+"))[1]
@@ -358,11 +268,6 @@ imputeContinousTraits <- function(missingData){
   return(imputeData)
 }
 
-#testConti <- NaNImputed$DataNaN$`1`$MCAR$`MCAR/CorrContinuousTraits/1/0.05`
-#imputeContinousTraits(testConti)
-#dim(testConti)
-
-
 # MICE
 ######
 #' @title Imputation of missing data for continuous and discrete traits by MICE approach
@@ -377,20 +282,13 @@ imputeContinousTraits <- function(missingData){
 #' @param method character, name of the imputation method used, by default is pmm (predictive mean matching)
 #' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors which correspond to the 
 #' phylogenetic inertia
-
+#' @param Data simulated Data object
 #' @return a data.frame of 1 or more numeric columns with the NAs replaced by values.
-#missingData <- partition
-#nbrMI <- 5
-#method <- "pmm"
-#variance_fraction <- 0.8
-#missingData <- partition
-#nbrMI <- 10
-#variance_fraction = 0.2
-imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0){
-  #print(missingData)
-  colNames <- names(missingData)
-  #rowNames <- row.names(missingData)
+
+imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0, Data){
   
+  colNames <- names(missingData)
+
   if(variance_fraction != 0){
     
     #get the right tree
@@ -402,37 +300,19 @@ imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0
     missingData <- cbind(missingData[, 1:ncol(missingData), drop = FALSE],
                          eigen[row.names(missingData), 1:ncol(eigen), drop = FALSE])
     
-    #print(eigen)
-    #print(missingData)
-    #row.names(missingData) <- rowNames
-    #missingData <- merge(missingData, eigen)
-    
   }
-  #print(missingData)
   names(missingData) <- paste0("A",as.character(1:ncol(missingData)))
 
   ImputedMICE <- mice(missingData, m = nbrMI, method = method, maxit = 5, printFlag = FALSE)
   
   #take the columns being closer the to the mean of the variable with missing data.
   NaNColIndex <- which(apply(missingData, 2, function(x) any(is.na(x))))
-  
-  #missingData[ ,NaNColIndex] <- apply(missingData[ ,NaNColIndex], 2, as.numeric)
-  #meanNaNCol <- apply(missingData[ ,NaNColIndex], 2, mean , na.rm = T)
-  #meanMI <- apply(ImputedMICE$imp[[NaNColIndex]], 2 , mean)
-  
-  # imputedData <- mice::complete(ImputedMICE, 
-  #                               action = which(abs(meanMI - meanNaNCol) == min(abs(meanMI - meanNaNCol))))
-  
+
   #choose the first column 
   imputedData <- mice::complete(ImputedMICE, action = 1)[, 1:length(colNames)]
   names(imputedData) <- colNames
   return(imputedData)
 }
-
-#imputeMICE(missingData, 5, 0.4)
-#imputeMICE(testConti, 10)
-#imputeMICE(partition,  nbrMI, method = "pmm", variance_fraction = )
-
 
 # missForest
 ############
@@ -454,7 +334,7 @@ imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0
 #' @return a data.frame of 1 or more numeric columns with the NAs replaced by values.
 
 imputeMissForest <- function(missingData, variance_fraction = 0, maxiter = 10, ntree = 100, 
-                             mtry = sqrt(ncol(missingData))){
+                             mtry = sqrt(ncol(missingData)), Data){
   
   Nvariables <- ncol(missingData)
 
@@ -479,14 +359,6 @@ imputeMissForest <- function(missingData, variance_fraction = 0, maxiter = 10, n
   return(missForest_imputation$ximp)
 }
 
-#imputeMissForest(missingData)
-#imputeMissForest(test, Data$TreeList$`0`)
-
-#missForest_imputation <- missForest(xmis = test ,maxiter = 10, ntree = 100)
-#missForest_imputation$ximp
-#missForest_imputation$OOBerror
-
-
 # KNN
 #####
 #' @title non-parametric missing value imputation for mixed-type data by kNN(k-nearest neighbor algorithm)
@@ -501,10 +373,10 @@ imputeMissForest <- function(missingData, variance_fraction = 0, maxiter = 10, n
 #' @param catFun catFun: function for aggregating the kNN in the case of a categorical variable
 #' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors which correspond to the 
 #' phylogenetic inertia
-
+#' @param Data simulated Data object
 #' @return a data.frame of 1 or more numeric columns with the NAs replaced by values.
 
-imputeKNN <- function(missingData, k, numFun, catFun, variance_fraction = 0){
+imputeKNN <- function(missingData, k, numFun, catFun, variance_fraction = 0, Data){
   
   NbrCol <- ncol(missingData)
     
@@ -531,18 +403,7 @@ imputeKNN <- function(missingData, k, numFun, catFun, variance_fraction = 0){
                           numFun = numFun, catFun = catFun, imp_var = FALSE)[,1:NbrCol]
   #keep the tip names
   rownames(DataImputed) <- rownames(missingData)
-  
 
-
-  #keep only the imputed row to save some space (discuss to know if keep this or not)
-  #indexKeep <- which(apply(testImputed[,(ncol(test)+1):(ncol(test)+ncol(test))], 1, any))
-  #testImputed <- testImputed[indexKeep,1:ncol(test)]
-  
   return(DataImputed)
 }
-#testConti <- NaNImputed$DataNaN$`1`$MCAR$`MCAR/CorrContinuousTraits/4/0.05`
-#imputedTest <- imputeKNN(testConti, k = 2, weightedMedian, maxCat, variance_fraction = 0.8)
-#imputedTest
-#imputeKNN(partition, k = 2, weightedMedian, maxCat)
-#imputeKNN(NaNImputed$DataNaN$`1`$MCAR$`MCAR/IndDiscreteTraits/3/0.05`, k = 2, weightedMedian, maxCat)
 

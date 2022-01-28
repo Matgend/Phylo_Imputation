@@ -11,4 +11,9 @@ This scripts imputes missing continuous values using the mvMORPH package.
 This scripts imputes missing states of a single discrete trait using the R package phytools or corHMM.
 
 `imputationApproaches.R`
-This script contains these imputation approaches: phytools, MICE, missForest, kNN, phylopars 
+This script contains these imputation approaches: Rphylopars, corrHMM, MICE, missForest and kNN.
+
+`imputeComparisonV2.R`
+This script contain the functions to generate the imputed values and to calculate the imputation accuracy.
+
+

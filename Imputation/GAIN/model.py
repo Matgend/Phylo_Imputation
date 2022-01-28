@@ -13,7 +13,7 @@ class Gain:
     def normalization(self, data: np.array) -> np.array:
         """
         Arg:
-            data: original data (numpy array)
+            data: original data (numpy array) with missing values
 
         Output:
             normalized_data: numpy array
@@ -27,7 +27,7 @@ class Gain:
         denormalized_data = self.scaler.inverse_transform(normalized_data)
         return denormalized_data
 
-    def _xavier_init(self, shape: List[int]) -> tf.tensor:
+    def _xavier_init(self, shape: List[int]) -> tf.Tensor:
         """Xavier initialization.
 
           Args:
@@ -55,13 +55,13 @@ class Gain:
         batch_idx = total_idx[:batch_size]
         return batch_idx
 
-    def _rmse_loss(self, ori_data: np.array, imputed_data: np.array, data_m) -> float:
+    def _rmse_loss(self, ori_data: np.array, imputed_data: np.array, data_m: np.array) -> float:
         """Compute RMSE loss between ori_data and imputed_data
 
         Args:
         - ori_data: original data without missing values
         - imputed_data: imputed data
-        - data_m: indicator matrix for missingness (np array?
+        - data_m: indicator matrix for missingness
 
         Returns:
         - rmse: Root Mean Squared Error
@@ -77,7 +77,61 @@ class Gain:
 
         return rmse
 
-    def train(self, data: np.array, batch_size: int, hint_rate: float, alpha: int, epochs: int) -> np.array:
+    def uniform_sampler(self, low: float, high: float, rows: int, cols: int) -> np.array:
+        '''Sample uniform random variables.
+
+        Args:
+          - low: low limit
+          - high: high limit
+          - rows: the number of rows
+          - cols: the number of columns
+
+        Returns:
+          - uniform_random_matrix: generated uniform random matrix.
+        '''
+        return np.random.uniform(low, high, size=[rows, cols])
+
+    def rounding(self, imputed_data: np.array, data_x: np.array) -> np.array:
+        '''Round imputed data for categorical variables.
+
+        Args:
+          - imputed_data: imputed data
+          - data_x: original data with missing values
+
+        Returns:
+          - rounded_data: rounded imputed data
+        '''
+
+        _, dim = data_x.shape
+        rounded_data = imputed_data.copy()
+
+        for i in range(dim):
+            temp = data_x[~np.isnan(data_x[:, i]), i]
+            # Only for the categorical variable
+            if len(np.unique(temp)) < 20:
+                rounded_data[:, i] = np.round(rounded_data[:, i])
+
+        return rounded_data
+
+    def binary_sampler(self, p: float, rows: int, cols: int) -> np.array:
+        '''Sample binary random variables.
+
+        Args:
+          - p: probability of 1
+          - rows: the number of rows
+          - cols: the number of columns
+
+        Returns:
+          - binary_random_matrix: generated binary random matrix.
+        '''
+        unif_random_matrix = np.random.uniform(0., 1., size=[rows, cols])
+        binary_random_matrix = 1 * (unif_random_matrix < p)
+        return binary_random_matrix
+
+    def runGain(self, data: np.array, batch_size: int, hint_rate: float, alpha: int, epochs: int) -> np.array:
+
+        # Define mask matrix
+        data_m = 1 - np.isnan(data)
 
         # normalize data
         normalized_data = self.normalization(data)
@@ -172,16 +226,21 @@ class Gain:
         sess = tf.Session()
         sess.run(tf.global_variables_initializer())
 
+        # training loop
         # Start Iterations
+        #save D loss , G loss, MSE loss
+        D_loss_Stock = []
+        G
+
         for it in tqdm(range(epochs)):
             # Sample batch
-            batch_idx = sample_batch_index(row, batch_size)
+            batch_idx = self.sample_batch_index(row, batch_size)
             X_mb = normalized_data_NaN0[batch_idx, :] # mb = mini batch
             M_mb = data_m[batch_idx, :]
             # Sample random vectors
-            Z_mb = uniform_sampler(0, 0.01, batch_size, col)
+            Z_mb = self.uniform_sampler(0, 0.01, batch_size, col)
             # Sample hint vectors
-            H_mb_temp = binary_sampler(hint_rate, batch_size, col)
+            H_mb_temp = self.binary_sampler(hint_rate, batch_size, col)
             H_mb = M_mb * H_mb_temp
 
             # Combine random vectors with observed vectors
@@ -193,8 +252,11 @@ class Gain:
                 sess.run([G_solver, G_loss_temp, MSE_loss],
                          feed_dict={X: X_mb, M: M_mb, H: H_mb})
 
+
+
+
         ## Return imputed data
-        Z_mb = uniform_sampler(0, 0.01, row, col)
+        Z_mb = self.uniform_sampler(0, 0.01, row, col)
         M_mb = data_m
         X_mb = normalized_data_NaN0
         X_mb = M_mb * X_mb + (1 - M_mb) * Z_mb
@@ -204,11 +266,12 @@ class Gain:
         imputed_data = data_m * normalized_data_NaN0 + (1 - data_m) * imputed_data
 
         # Renormalization
-        imputed_data = renormalization(imputed_data, norm_parameters)
+        imputed_data = self.denormalization(imputed_data)
 
         # Rounding
-        imputed_data = rounding(imputed_data, data_x)
+        imputed_data = self.rounding(imputed_data, data)
 
+        return imputed_data
 
     def test(self):
         pass
