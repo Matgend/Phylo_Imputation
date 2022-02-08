@@ -230,7 +230,7 @@ class Gain:
         # Start Iterations
         #save D loss , G loss, MSE loss
         D_loss_Stock = []
-        G
+        G_loss_Stock = []
 
         for it in tqdm(range(epochs)):
             # Sample batch
@@ -272,16 +272,4 @@ class Gain:
         imputed_data = self.rounding(imputed_data, data)
 
         return imputed_data
-
-    def test(self):
-        pass
-
-    def predict(self):
-        pass
-
-    def export(self):
-        pass
-
-    def load(self):
-        pass
 

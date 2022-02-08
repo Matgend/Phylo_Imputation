@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="f4f80fb4-11cc-4618-9b2a-787a9fb48f20" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/Imputation/imputationApproaches.R" beforeDir="false" afterPath="$PROJECT_DIR$/Imputation/imputationApproaches.R" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Imputation/GAIN/model.py" beforeDir="false" afterPath="$PROJECT_DIR$/Imputation/GAIN/model.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -33,7 +34,12 @@
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../Phylo_ImputationLocal/Imputation/GAIN/modelV2.py" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Matthieu\Documents\UNIFR\Master_thesis\Scripts\Phylo_ImputationLocal\Imputation\GAIN" />
+    </key>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
@@ -44,6 +50,9 @@
       <option name="presentableId" value="Default" />
       <updated>1638969956820</updated>
       <workItem from="1638969966039" duration="13464000" />
+      <workItem from="1643703728788" duration="16732000" />
+      <workItem from="1643793461680" duration="3550000" />
+      <workItem from="1643812913578" duration="10526000" />
     </task>
     <servers />
   </component>
