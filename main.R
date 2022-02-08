@@ -36,8 +36,10 @@ require(missForest)
 require(tibble)
 require(Rphylopars)
 require(corHMM)
+require(reticulate)
 
 setwd("/home/mgendre/Cluster/scripts/")
+#setwd("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/Phylo_ImputationLocal/")
 
 # Create directory
 dir.create("../Simulation", showWarnings = FALSE)
@@ -46,7 +48,7 @@ dir.create("../Simulation/MissingData", showWarnings = FALSE)
 dir.create("../Simulation/Results", showWarnings = FALSE)
 dir.create("../Simulation/Results/Replicates", showWarnings = FALSE)
 dir.create("../Simulation/Results/Overall", showWarnings = FALSE)
-
+#dir.create("../Simulation/Results/PlotGain", showWarnings = FALSE)
 
 #load datasets
 files <- list.files("../csv/") #No parameter necessary now since you're in the proper directory
@@ -54,6 +56,9 @@ datasetList <- list()
 for (i in 1:length(files)){
   datasetList[[i]] <- read.csv(paste0("../csv/",files[i]), header = T, sep = ";")
 }
+
+#conda environement
+#use_condaenv(condaenv = "tfKeras")
 
 #remove .csv to file name
 nameFiles <- gsub("\\.csv", "", files)
@@ -70,7 +75,6 @@ Seed <- seq(1,100,50) #number of replicates
 tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 100)
 
 for(data in 1:length(datasetList)){
-
   for(s in Seed){
     set.seed(s)
     SlurmID <- as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
@@ -80,6 +84,7 @@ for(data in 1:length(datasetList)){
     source(file = "./Simulation/SimData.R")
     nameSimulation <- file.path("../Simulation/FullData", sprintf("simulatedData%s_R%d",
                                                                   nameFiles[data], s+SlurmID))
+   
     simulatedData <- simData(tree_arg, datasetList[[data]], save = nameSimulation)
 
     #Simulate NA in different proportions in full data. Output: NaNImputed
@@ -98,8 +103,12 @@ for(data in 1:length(datasetList)){
     source(file = "./Imputation/imputeComparisonV2.R")
     nameImputation <- file.path("../Simulation/Results/Replicates", sprintf("Results%s_%d_R%d", 
                                                                             nameFiles[data], data, s+SlurmID))
-    ImputationApproachesNames <- c("imputeDiscrete", "imputeContinuous", "imputeMICE", "imputeMissForest", "imputeKNN")
+ 
+    ImputationApproachesNames <- c("imputeDiscrete", "imputeContinuous", "imputeMICE", "imputeMissForest", 
+                                   "imputeKNN", "gainR")   
+  
     variance_fractions <- c(0, 0.95)
+  
     generateResults(ImputationApproachesNames, NaNData, simulatedData, 
                     variance_fractions, save = nameImputation)
   }
@@ -112,6 +121,3 @@ for(data in 1:length(datasetList)){
               pathReplicates = "../Simulation/Results/Replicates/")
 
 }
-
-
-

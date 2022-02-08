@@ -38,7 +38,7 @@ class Gain:
           """
         in_dim = shape[0]
         xavier_stddev = 1. / tf.sqrt(in_dim / 2.)
-        return tf.random_normal(shape=shape, stddev=xavier_stddev)
+        return tf.random.normal(shape=shape, stddev=xavier_stddev)
 
     def sample_batch_index(self, total: int, batch_size: int) -> int:
         """
@@ -128,7 +128,37 @@ class Gain:
         binary_random_matrix = 1 * (unif_random_matrix < p)
         return binary_random_matrix
 
-    def runGain(self, data: np.array, batch_size: int, hint_rate: float, alpha: int, epochs: int) -> np.array:
+    #def runGain(self, data: np.array, gain_parameters: dict) -> tuple[np.array, list, list, list, list]:
+    def runGain(self, data: np.array, batch_size: int, hint_rate: float, alpha: float, epochs: int)\
+            -> tuple[np.array, list, list, list, list]:
+        """
+        Args:
+        - data: original data with missing values
+        - gain_parameters: GAIN network
+        parameters:
+        - batch_size: Batch size
+        - hint_rate: Hint rate
+        - alpha: Hyperparameter
+        - epochs: Iterations
+
+        Save:
+        - imputed_data: imputed data
+        - d_loss: discriminator loss
+        - g_loss : generator loss
+        - mse_loss: mean square error loss
+        - it : iterations
+        """
+
+        #System parameters
+        # batch_size = gain_parameters['batch_size']
+        # hint_rate = gain_parameters['hint_rate']
+        # alpha = gain_parameters['alpha']
+        # epochs = gain_parameters['epochs']
+
+        batch_size = int(batch_size)
+        hint_rate = float(hint_rate)
+        alpha = float(alpha)
+        epochs = int(epochs)
 
         # Define mask matrix
         data_m = 1 - np.isnan(data)
@@ -136,17 +166,20 @@ class Gain:
         # normalize data
         normalized_data = self.normalization(data)
         # replace NaN by 0 in normalized data
-        normalized_data_NaN0 = np.nan_to_num(normalized_data, 0)
+        normalized_data_NaN0 = np.nan_to_num(normalized_data, nan=0)
+
 
         row, col = data.shape
         # GAIN architecture #
+        tf.compat.v1.disable_eager_execution()
         # Input placeholders
         # Data vector
-        X = tf.placeholder(tf.float32, shape=[None, col])
+        X = tf.compat.v1.placeholder(tf.float32, shape=[None, col])
         # Mask vector
-        M = tf.placeholder(tf.float32, shape=[None, col])
+        M = tf.compat.v1.placeholder(tf.float32, shape=[None, col])
         # Hint vector
-        H = tf.placeholder(tf.float32, shape=[None, col])
+        H = tf.compat.v1.placeholder(tf.float32, shape=[None, col])
+
 
         # Discriminator variables
         D_W1 = tf.Variable(self._xavier_init([col * 2, col]))# Data + Hint as inputs
@@ -207,31 +240,32 @@ class Gain:
         D_prob = discriminator(Hat_X, H)
 
         ## GAIN loss
-        D_loss_temp = -tf.reduce_mean(M * tf.log(D_prob + 1e-8) \
-                                      + (1 - M) * tf.log(1. - D_prob + 1e-8))
+        D_loss_temp = -tf.reduce_mean(input_tensor=M * tf.math.log(D_prob + 1e-8) \
+                                       + (1 - M) * tf.math.log(1. - D_prob + 1e-8))
 
-        G_loss_temp = -tf.reduce_mean((1 - M) * tf.log(D_prob + 1e-8))
+        G_loss_temp = -tf.reduce_mean(input_tensor=(1 - M) * tf.math.log(D_prob + 1e-8))
 
         MSE_loss = \
-            tf.reduce_mean((M * X - M * G_sample) ** 2) / tf.reduce_mean(M)
+            tf.reduce_mean(input_tensor=(M * X - M * G_sample) ** 2) / tf.reduce_mean(input_tensor=M)
 
         D_loss = D_loss_temp
         G_loss = G_loss_temp + alpha * MSE_loss # learning rate
 
         ## GAIN solver
-        D_solver = tf.train.AdamOptimizer().minimize(D_loss, var_list=theta_D)
-        G_solver = tf.train.AdamOptimizer().minimize(G_loss, var_list=theta_G)
+        D_solver = tf.compat.v1.train.AdamOptimizer().minimize(D_loss, var_list=theta_D)
+        G_solver = tf.compat.v1.train.AdamOptimizer().minimize(G_loss, var_list=theta_G)
 
         ## Iterations
-        sess = tf.Session()
-        sess.run(tf.global_variables_initializer())
+        sess = tf.compat.v1.Session()
+        sess.run(tf.compat.v1.global_variables_initializer())
 
         # training loop
         # Start Iterations
-        #save D loss , G loss, MSE loss
-        D_loss_Stock = []
-        G
-
+        #save d loss , g_loss, mse loss
+        d_loss_Stock = []
+        g_loss_Stock = []
+        mse_loss_Stock = []
+        it_Stock = []
         for it in tqdm(range(epochs)):
             # Sample batch
             batch_idx = self.sample_batch_index(row, batch_size)
@@ -252,7 +286,11 @@ class Gain:
                 sess.run([G_solver, G_loss_temp, MSE_loss],
                          feed_dict={X: X_mb, M: M_mb, H: H_mb})
 
-
+            if it % 1000 == 0 or it == 0:
+                g_loss_Stock.append(G_loss_curr)
+                d_loss_Stock.append(D_loss_curr)
+                mse_loss_Stock.append(MSE_loss_curr)
+                it_Stock.append(it)
 
 
         ## Return imputed data
@@ -271,17 +309,4 @@ class Gain:
         # Rounding
         imputed_data = self.rounding(imputed_data, data)
 
-        return imputed_data
-
-    def test(self):
-        pass
-
-    def predict(self):
-        pass
-
-    def export(self):
-        pass
-
-    def load(self):
-        pass
-
+        return imputed_data, d_loss_Stock, g_loss_Stock, mse_loss_Stock, it_Stock

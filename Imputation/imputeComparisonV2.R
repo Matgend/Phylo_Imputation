@@ -116,6 +116,8 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
   #save imputed data
   OutputImputedData <- list()
   OutputImputedDataNames <- c()
+  OutputParameters <- list()
+  OutputParametersNames <- c()
 
   replicate <- NaNImputed$DataNaN
 
@@ -142,6 +144,8 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
     errorDataframeNames <- c()
     imputedData <- list()
     imputedDataNames <- c()
+    parameters <- list()
+    parametersNames <- c()
 
     randomApproaches <- replicate[[rdn]]
 
@@ -220,28 +224,37 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
         
       if(length(grep("I.", names(partition))) == ncol(partition)){
         impName <- paste(errorName, ImputationApproachesNames[1], "Imputed", sep = "/")
+        paraName <- paste(errorName, ImputationApproachesNames[1], "Param", sep = "/")
         if(ncol(partition) == 1){
           imputedDataNames <- c(imputedDataNames, impName)
+          parametersNames <- c(parametersNames, paraName)
         }
         else{
           imputedDataNames <- c(imputedDataNames, c(impName, paste(errorName, var_frac, 
                                                                    approachesName, "Imputed", sep = "/")))
+          parametersNames <- c(parametersNames, c(paraName, paste(errorName, var_frac, 
+                                                                   approachesName, "Param", sep = "/")))
         }
       }
       
       if(length(grep("F.", names(partition))) == ncol(partition)){
         impName <- paste(errorName, ImputationApproachesNames[2], "Imputed", sep = "/")
+        paraName <- paste(errorName, ImputationApproachesNames[2], "Param", sep = "/")
         if(ncol(partition) == 1){
           imputedDataNames <- c(imputedDataNames, impName)
+          parametersNames <- c(parametersNames, paraName)
         }
         else{
           imputedDataNames <- c(imputedDataNames, c(impName, paste(errorName, var_frac, 
                                                                    approachesName, "Imputed", sep = "/")))
+          parametersNames <- c(parametersNames, c(paraName, paste(errorName, var_frac, 
+                                                                  approachesName, "Param", sep = "/")))
         }
       }
       if(length(grep("F.", names(partition))) != ncol(partition) & 
          length(grep("I.", names(partition))) != ncol(partition)){
         imputedDataNames <- c(imputedDataNames, paste(errorName, approachesName, "Imputed", sep = "/"))
+        parametersNames <- c(parametersNames, paste(errorName, approachesName, "Param", sep = "/"))
       }
 
       imputeA <- NA
@@ -257,14 +270,16 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
         imputeA <- ImputationApproachesNames[1]
         varf <- 1
         if(rdn == length(replicate)){
-          error <- imputationError(imputedTrait, trueData, partition, 
+          error <- imputationError(imputedTrait$imputedData, trueData, partition, 
                                             paste(imputeA, subdatasNames[p, 3], sep = "/"), Data)
         }
         else{
-          error <- imputationError(imputedTrait, trueData, partition, paste(imputeA, subdatasNames[p, 4], sep = "/"), Data)
+          error <- imputationError(imputedTrait$imputedData, trueData, 
+                                   partition, paste(imputeA, subdatasNames[p, 4], sep = "/"), Data)
         }
         t <- end_time - start_time
-        imputedData <- c(imputedData, list(imputedTrait))
+        imputedData <- c(imputedData, list(imputedTrait$imputedData))
+        parameters <- c(parameters, list(imputedTrait$parameters))
 
       }
       
@@ -280,20 +295,20 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
         start_time <- Sys.time()
         imputedTrait <- imputeContinousTraits(partition, Data)
         end_time <- Sys.time()
-        
         imputeA <- ImputationApproachesNames[2]
         varf <- 1
         if(rdn == length(replicate)){
-          error <- imputationError(imputedTrait, trueData, partition, 
+          error <- imputationError(imputedTrait$imputedData, trueData, partition, 
                                    paste(imputeA, subdatasNames[p, 3], 1, sep = "/"), Data)
         }
         else{
-          error <- imputationError(imputedTrait, trueData, partition, 
+          error <- imputationError(imputedTrait$imputedData, trueData, partition, 
                                    paste(imputeA, subdatasNames[p, 4], 1, sep = "/"), Data)
         }
 
         t <- end_time - start_time
-        imputedData <- c(imputedData, list(imputedTrait))
+        imputedData <- c(imputedData, list(imputedTrait$imputedData))
+        parameters <- c(parameters, list(imputedTrait$parameters))
         
       }
       
@@ -321,7 +336,10 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
                                                                      maxiter = 10, ntree = 100,
                                                                      mtry = sqrt(ncol(partition)), Data),
                                             "imputeKNN", list(partition, k, numFun, catFun,
-                                                              v, Data))
+                                                              v, Data),
+                                            "gainR", list(partition, v, Data, 
+                                                          batch_size = round(ncol(partition)*0.2), 
+                                                          hint_rate = 0.9, alpha = 100, epochs = 10000))
           
 
           imputeApproachName <- c(imputeApproachName, MixedImputationApproaches[[method]])
@@ -335,12 +353,21 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
             time <- c(time, NA)
             next
           }
-
-          start_time <- Sys.time()
-          imputedTrait <- do.call(MixedImputationApproaches[[method]], MixedImputationApproaches[[method + 1]])
-          end_time <- Sys.time()
-          imputedData <- c(imputedData, list(imputedTrait))
           
+          if(MixedImputationApproaches[[method]] == "gainR"){
+            start_time <- Sys.time()
+            imputedTrait <- do.call(MixedImputationApproaches[[method]], MixedImputationApproaches[[method + 1]])
+            end_time <- Sys.time()
+            imputedData <- c(imputedData, list(imputedTrait$imputedData))
+            parameters <- c(parameters, list(imputedTrait$parameters))
+          }
+          if(MixedImputationApproaches[[method]] != "gainR"){
+            start_time <- Sys.time()
+            imputedTrait <- do.call(MixedImputationApproaches[[method]], MixedImputationApproaches[[method + 1]])
+            end_time <- Sys.time()
+            imputedData <- c(imputedData, list(imputedTrait$imputedData))
+            parameters <- c(parameters, list(imputedTrait$parameters))
+          }
           if(is.null(imputedTrait)){
             time <- c(time, NA)
           }
@@ -350,13 +377,13 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
           }
           
           if(rdn == length(replicate)){
-            error <- imputationError(imputedTrait, trueData, partition, 
+            error <- imputationError(imputedTrait$imputedData, trueData, partition, 
                                      paste(MixedImputationApproaches[[method]],
                                            subdatasNames[p, 3], v, sep = "/"), Data)
           }
           
           if(rdn != length(replicate)){
-            error <- imputationError(imputedTrait, trueData, partition, 
+            error <- imputationError(imputedTrait$imputedData, trueData, partition, 
                                      paste(MixedImputationApproaches[[method]], 
                                            subdatasNames[p, 4], v, sep = "/"), Data)
           }
@@ -382,6 +409,9 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
     OutputImputedData[[rdn]] <- imputedData
     names(OutputImputedData[[rdn]]) <- imputedDataNames
     names(OutputImputedData)[rdn] <- paste("Imputed", names(replicate)[rdn], sep = "/")
+    OutputParameters[[rdn]] <- parameters
+    names(OutputParameters[[rdn]]) <- parametersNames
+    names(OutputParameters)[rdn] <- paste("Parameters", names(replicate)[rdn], sep = "/")
   }
   TimeDataframe <- data.frame(random_Type = randomType, partition = partitionName,
                               missing_Degree = missingDegree, variance_fractions = var_fraction,
@@ -393,17 +423,24 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
   
   if(length(replicate) == 3){
     FinalOutput <- list(TimeDataframe = TimeDataframe, 
-                        MCAR = list(Error = OutputErrorsDataframes[[1]], Imputed = OutputImputedData[[1]]), 
-                        MNAR = list(Error = OutputErrorsDataframes[[2]], Imputed = OutputImputedData[[2]]), 
-                        PhyloNA = list(Error = OutputErrorsDataframes[[3]], Imputed = OutputImputedData[[3]]))
+                        MCAR = list(Error = OutputErrorsDataframes[[1]], Imputed = OutputImputedData[[1]], 
+                                    Parameters = OutputParameters[[1]]), 
+                        MNAR = list(Error = OutputErrorsDataframes[[2]], Imputed = OutputImputedData[[2]], 
+                                    Parameters = OutputParameters[[2]]), 
+                        PhyloNA = list(Error = OutputErrorsDataframes[[3]], Imputed = OutputImputedData[[3]], 
+                                       Parameters = OutputParameters[[3]]))
   }
   
   else{
     FinalOutput <- list(TimeDataframe = TimeDataframe, 
-                        MCAR = list(Error = OutputErrorsDataframes[[1]], Imputed = OutputImputedData[[1]]), 
-                        MAR = list(Error = OutputErrorsDataframes[[2]], Imputed = OutputImputedData[[2]]), 
-                        MNAR = list(Error = OutputErrorsDataframes[[3]], Imputed = OutputImputedData[[3]]),
-                        PhyloNA = list(Error = OutputErrorsDataframes[[4]], Imputed = OutputImputedData[[4]]))
+                        MCAR = list(Error = OutputErrorsDataframes[[1]], Imputed = OutputImputedData[[1]], 
+                                    Parameters = OutputParameters[[1]]), 
+                        MAR = list(Error = OutputErrorsDataframes[[2]], Imputed = OutputImputedData[[2]], 
+                                   Parameters = OutputParameters[[2]]), 
+                        MNAR = list(Error = OutputErrorsDataframes[[3]], Imputed = OutputImputedData[[3]], 
+                                    Parameters = OutputParameters[[3]]),
+                        PhyloNA = list(Error = OutputErrorsDataframes[[4]], Imputed = OutputImputedData[[4]], 
+                                       Parameters = OutputParameters[[4]]))
   }
   
   if(!is.null(save)){
@@ -477,9 +514,9 @@ meanPartition <- function(ErrorOutputObject){
 #'
 #' @usage loadReplicates(integer, filesInFolder, pathDataframe)
 #'
-#' @param simDataFolder: character vector with name of simulation data
-#' @param filesInFolder: character vector with name of the replicate files
-#' @param phatDataframe: path where the .csv file are
+#' @param simDataFolder character vector with name of simulation data
+#' @param filesInFolder character vector with name of the replicate files
+#' @param phatDataframe path where the .csv file are
 #' @return return a character vector with all the replicates of the same type of simulated data
 
 loadReplicates <- function(integer, filesInFolder, pathDataframe){
@@ -491,18 +528,17 @@ loadReplicates <- function(integer, filesInFolder, pathDataframe){
   return(replicatesFiles)
 }
 
+
 #' @title Mean of all the replicates
 #'
 #' @description This function calculates the overall mean of all the replicates for the same type of simulated data
 #'
 #' @usage overallMean(namesReplicates, path, pathReplicates)
 #'
-#' @param namesReplicates: character string with replicate name files
-#' @param path: path where want to save the data
-#' @param pathReplicates: path of the directory containing the replicates
+#' @param namesReplicates character string with replicate name files
+#' @param path path where want to save the data
+#' @param pathReplicates path of the directory containing the replicates
 #' @return return a .RData object with a matrix for each random approaches and partition with the overall mean error
-#' 
-
 overallMean <- function(namesReplicates, path, pathReplicates){
   #use the first replicate as the final output
   replicate1 <- get(load(paste0(pathReplicates, namesReplicates[1])))
@@ -535,5 +571,4 @@ overallMean <- function(namesReplicates, path, pathReplicates){
   namefile <- file.path(path, sprintf("overallError%s_%s", nameReplicate, digitReplicate))
   save(meanRep1, file = paste0(namefile, ".RData"))
 }
-
 

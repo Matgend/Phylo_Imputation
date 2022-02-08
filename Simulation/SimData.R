@@ -640,8 +640,6 @@ simData <- function(param_tree, dataframe, save = NULL){
                AlphaMatrices = AlphasList, Thetas = ThetasList, SigmaMatrices = SigmasList, TreeList = TreeList, 
                PhyloParam = param_tree, dataframe = dataframe)
   
-  print(Data)
-  print("ok")
   #Save data
   ##########
   if(!is.null(save)){

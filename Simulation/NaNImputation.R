@@ -13,12 +13,12 @@
 splitDiscAndContiColnames <- function(columnNames){
   
   #discrete traits
-  pattern <- "I.\\...."
+  pattern <- "I\\d+\\...."
   DiscreteColnames <- str_extract(columnNames, pattern)
   DiscreteColnames <- DiscreteColnames[!is.na(DiscreteColnames)]
 
   #continuous traits
-  pattern <- "F.\\...."
+  pattern <- "F\\d+\\...."
   ContiColnames <- str_extract(columnNames, pattern)
   ContiColnames <- ContiColnames[!is.na(ContiColnames)]
   
@@ -45,7 +45,8 @@ splitDiscAndContiColnames <- function(columnNames){
 #' @usage dataPartition(Data)
 #' @param Data a nested list with at least the structure of the dataset and the dataset itself
 #' @return  a nested list having the column name of the partitionned data as in the description
-#'
+
+Data <- simulatedData
 dataPartition <- function(Data){
 
   correlation_values <- unique(Data$dataframe$correlation)
@@ -162,7 +163,7 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
     for(colList in partitions[[l]]){
 
       if (length(colList) == 0){
-	next
+        next
       }
 
       if (missTraits > length(colList)){
@@ -200,13 +201,27 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
         }
         
         if(length(colList) > 2){
+          colMis <- sample(colList, missTraits)
+          
+          #MCAR
+          missingMCAR <- delete_MCAR(data$FinalData[,colList], missingRates[mr], 
+                                     cols_mis = colMis, p_overall = T)
+          
+          #MNAR
+          missingMNAR <- delete_MNAR_censoring(data$FinalData[,colList], missingRates[mr],
+                                               cols_mis = colMis, where = "upper")#decide where argument                                                                                                                      we want to.
+        }
+        
+        if(l > 3 & (length(colList) != 1)){
 
+          namesMAR <- c(namesMAR, paste("MAR", names(partitions)[l], length(colList), missingRates[mr], sep = "/"))
+          
           if(length(colList) %% 2 == 0){
-
+            
             if(missTraits > length(colList)/2){
               missTraits <- length(colList)/2
             }
-
+            
             if(missingRates[1] == missingRates[mr]){
               cols_misIndex <- sample(length(colList), missTraits)
               cols_ctrlIndex <- c(1:length(colList))[-cols_misIndex]
@@ -223,22 +238,8 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
               cols_misIndex <- sample(length(colList), missTraits)
               cols_ctrlIndex <- c(1:length(colList))[-cols_misIndex]
               cols_ctrlIndex <- sample(cols_ctrlIndex, missTraits)
-              }
+            }
           }
-
-          #MCAR
-          missingMCAR <- delete_MCAR(data$FinalData[,colList], missingRates[mr], 
-                                     cols_mis = cols_misIndex, p_overall = TRUE)
-
-          #MNAR
-          missingMNAR <- delete_MNAR_censoring(data$FinalData[,colList], missingRates[mr],
-                                               cols_mis = cols_misIndex, where = "upper")#decide where argument                                                                                                                      we want to.
-
-          }
-        
-        if(l > 3 & (length(colList) != 1)){
-
-          namesMAR <- c(namesMAR, paste("MAR", names(partitions)[l], length(colList), missingRates[mr], sep = "/"))
           
           if(length(colList) == 2){
 
@@ -311,3 +312,6 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
   
   return(NaNImputed)
 }
+
+
+
