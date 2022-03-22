@@ -626,7 +626,7 @@ simData <- function(param_tree, dataframe, save = NULL){
     AlphasList[[i]] <- Alphas
     ThetasList[[i]] <- Thetas
     SigmasList[[i]] <- Sigmas
-    TreeList[[i]] <- subdataTree
+    TreeList[[i]] <- SimTree
     
      
   }#close for loop
