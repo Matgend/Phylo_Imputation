@@ -46,7 +46,6 @@ splitDiscAndContiColnames <- function(columnNames){
 #' @param Data a nested list with at least the structure of the dataset and the dataset itself
 #' @return  a nested list having the column name of the partitionned data as in the description
 
-Data <- simulatedData
 dataPartition <- function(Data){
 
   correlation_values <- unique(Data$dataframe$correlation)
@@ -106,7 +105,6 @@ dataPartition <- function(Data){
 }
 
 
-
 #' @title Identify species for phylogenetic NAs
 #'
 #' @description This function returns the names of the species that should get NAs for their traits
@@ -114,25 +112,97 @@ dataPartition <- function(Data){
 #' @usage getTipsNA(Tree, MinTips) 
 #'
 #' @param Tree Phylogeny 
-#' @param MinTips number of species for which NAs should be created
+#' @param missingRates numerical vector corresponding to the rate of missing value to introduce in the data
 #' @return vector containing the names of the species that should get NAs for their traits
-getTipsNA <- function (Tree, MinTips){
+
+getTipsNA <- function (Tree, missingRates){
   Nodes <- Nnode(Tree)
   Tips <- Ntip(Tree)
   MaxNodeID <- Tips + Nodes
   NodeIDs <- (Tips + 1):MaxNodeID
+  MinTips <- round(missingRates * Tips, 1)
   EnoughTips <- FALSE
   while (!EnoughTips) {
     FocalNode <- sample(NodeIDs, 1)
     Desc <- phangorn::Descendants(Tree, FocalNode, type = "tips")[[1]]
     SampledTips <- Tree$tip.label[Desc]
-    if (length(SampledTips) >= MinTips & length(SampledTips) <= MinTips + 3){ #give me only a clade of a defined size
+    if(length(SampledTips) >= MinTips){
       EnoughTips <- TRUE
     }
+  }
+  if(length(SampledTips) > MinTips){
+    SampledTips <- sample(SampledTips, MinTips)
   }
   return(SampledTips)
 }
 
+
+#MNAR simulation
+################
+
+#'@title Impute NaNs in a simulated data according the MNAR mechanisms
+#'
+#'@description Simulate NaNs in a partitioned complete data set composed of discrete and continuous traits which are correlated or uncorrelated. The NaNs are imputed according a missing rate and the missing mechanism MNAR.
+#'
+#'@usage myMNAR(missingRate, partition, col_mis)
+#'
+#'@param missingRates numerical vector corresponding to the rate of missing value to introduce in the data
+#'@param partitions nested list having character vectors corresponding to the data partition of discrete traits 
+#'@param col_mis vector of index or columns name where missing value will be created
+#'@return a dataset with NA following a pattern of MNAR.
+
+myMNAR <- function(missingRate, partition, col_mis){
+  
+  if(is.numeric(col_mis)){
+    colPartition <- col_mis
+  }
+  
+  else if(is.character(col_mis)){
+    colPartition <- match(col_mis, names(partition))
+  }
+  
+  for(col in colPartition){
+    
+    if(length(grep("F.", names(partition[, col]))) == 1){
+      partition[ , col] <- delete_MNAR_censoring(partition[ , col], missingRates, 
+                            cols_mis = col, where = "upper") #don't change where arg
+    }
+    
+    else{
+      levelsVector <- sort(unique(partition[ ,col]))
+      
+      nbrValueToRemove <- round(nrow(partition) * missingRate)
+      
+      maxState <- tail(levelsVector, 1)
+      
+      #in case not enough value in max state, remove in the other states
+      while (nbrValueToRemove > 0){
+        
+        levelsVector <- levelsVector[-which(levelsVector == maxState)]
+        indexLargeState <- which(partition[,col] == maxState)
+        
+        #keep present 1 value of the state
+        indexLargeState <- indexLargeState[-which(indexLargeState == sample(indexLargeState, 1))]
+        
+        if(length(indexLargeState) >= nbrValueToRemove){
+          indexLargeState <- sample(indexLargeState, nbrValueToRemove)
+          nbrValueToRemove <- 0
+          
+        }
+        
+        else{
+          nbrValueToRemove <- nbrValueToRemove - length(indexLargeState)
+          indexLargeState <- sample(indexLargeState, length(indexLargeState))
+          maxState <- sample(levelsVector, 1)
+        }
+        
+        #apply NA
+        partition[indexLargeState, col] <- NA
+      }
+    }
+  }
+  return(partition)
+}
 
 #NaN imputation
 ##############
@@ -149,6 +219,13 @@ getTipsNA <- function (Tree, MinTips){
 #'@param missTraits numerical, number of traits in which there is missing data.
 #'@param save character correspond to the name of the saved file in .RData format
 #'@return a nested list composed of the partitioned data with the 3 categories of missing data (MCRA, MAR and MNAR) according to a precise missing rate and of list of specific traits with NaNs imputed according to MCAR (phylogeny).
+
+# missingRates <- 0.5
+# partitions <- dataPartition(Data)
+# data <- Data
+# missTraits <- ncol(Data$FinalData)
+# data$FinalData
+# test <- NaNImputation(missingRates, partitions, data, missTraits)
 NaNImputation <- function(missingRates, partitions, data, missTraits, save = NULL){
   DataNaN <- list()
   MCAR <- list()
@@ -172,9 +249,9 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
       
       for(mr in 1:length(missingRates)){
 
-        namesMCAR <- c(namesMCAR, paste("MCAR", names(partitions)[l], length(colList), missingRates[mr] ,sep = "/"))
+        namesMCAR <- c(namesMCAR, paste("MCAR", names(partitions)[l], length(colList), round(missingRates[mr],2) ,sep = "/"))
         
-        namesMNAR <- c(namesMNAR, paste("MNAR", names(partitions)[l], length(colList), missingRates[mr] ,sep = "/"))
+        namesMNAR <- c(namesMNAR, paste("MNAR", names(partitions)[l], length(colList), round(missingRates[mr],2), sep = "/"))
         
         #univariate
         if(length(colList) == 2){
@@ -187,8 +264,7 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
           missingMCAR <- delete_MCAR(data$FinalData[,colList, drop = FALSE], missingRates[mr], cols_mis = colMis)
           
           #MNAR
-          missingMNAR <- delete_MNAR_censoring(data$FinalData[,colList, drop = FALSE], missingRates[mr], 
-                                               cols_mis = colMis, where = "upper") #don't change where arg
+          missingMNAR <- myMNAR(missingRates[mr], data$FinalData[,colList, drop = FALSE], colMis)
           
         }
         
@@ -196,8 +272,7 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
           oneColum <- as.data.frame(data$FinalData[ ,colList, drop = FALSE])
           names(oneColum) <- colList
           missingMCAR <- delete_MCAR(oneColum, missingRates[mr], missTraits)
-          missingMNAR <- delete_MNAR_censoring(oneColum, missingRates[mr], 
-                                               cols_mis = colList, where = "upper") #don't change where arg
+          missingMNAR <- myMNAR(missingRates[mr], oneColum, missTraits)
         }
         
         if(length(colList) > 2){
@@ -205,16 +280,15 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
           
           #MCAR
           missingMCAR <- delete_MCAR(data$FinalData[,colList], missingRates[mr], 
-                                     cols_mis = colMis, p_overall = T)
+                                     cols_mis = colMis, p_overall = FALSE)
           
           #MNAR
-          missingMNAR <- delete_MNAR_censoring(data$FinalData[,colList], missingRates[mr],
-                                               cols_mis = colMis, where = "upper")#decide where argument                                                                                                                      we want to.
+          missingMNAR <- myMNAR(missingRates[mr], data$FinalData[,colList, drop = FALSE], colMis)
         }
         
         if(l > 3 & (length(colList) != 1)){
 
-          namesMAR <- c(namesMAR, paste("MAR", names(partitions)[l], length(colList), missingRates[mr], sep = "/"))
+          namesMAR <- c(namesMAR, paste("MAR", names(partitions)[l], length(colList), round(missingRates[mr],2), sep = "/"))
           
           if(length(colList) %% 2 == 0){
             
@@ -277,23 +351,26 @@ NaNImputation <- function(missingRates, partitions, data, missTraits, save = NUL
   # Drop randomly tips in phylogenetic tree
   PhyloNaN <- list()
   namesTrees <- c()
-  lengthTips <- c()
-  for (mt in 2:8){
-    tips <- getTipsNA(data$TreeList$`0`, mt)
-
-    if(length(tips) %in% lengthTips){
+  
+  for(mr in 1:length(missingRates)){
+    
+    #copy of FinalData
+    missingPhylo <- data$FinalData
+    
+    #in case missingRates larger than 50%
+    if(missingRates[mr] > 0.5){
+      print("Can't simulate PhyloNaN")
       next
     }
     
-    lengthTips <- c(lengthTips, length(tips))
-    for(mr in 1:length(missingRates)){
-    namesTrees <- c(namesTrees, paste("PhyloNaN", length(tips), missingRates[mr], sep = "/"))
+    #tips to include NaN
+    tips <- getTipsNA(data$TreeList$`0`, missingRates[mr])
     
-    #MCAR
-    missingMCAR <- delete_MCAR(data$FinalData[tips, ], missingRates[mr], 1:ncol(data$FinalData), p_overall = TRUE)
-    
-    PhyloNaN <- c(PhyloNaN, list(missingMCAR))
-    }
+    namesTrees <- c(namesTrees, paste("PhyloNaN", length(tips), round(missingRates[mr],2), sep = "/"))
+  
+    missingPhylo[tips, ] <- NA
+  
+    PhyloNaN <- c(PhyloNaN, list(missingPhylo))
   }
   
   #Rename the nested list

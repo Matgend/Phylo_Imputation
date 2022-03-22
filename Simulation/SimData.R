@@ -6,12 +6,12 @@
 #install.packages("tidyverse")
 
 
-# library(mvMORPH)
-# library(phytools)
-# library(Matrix)
-# library(castor)
-# library(geiger)
-# library(tidyverse)
+library(mvMORPH)
+library(phytools)
+library(Matrix)
+library(castor)
+library(geiger)
+library(tidyverse)
 
 #' @title Simulate variance-covariance matrix for morphological evolution
 #'
@@ -224,8 +224,9 @@ simDiscreteTraits <- function(Ntraits, Nstates, rate_model, max_rate, tree, equa
   
   return(list(tip_mat = tip_mat, node_mat = node_mat))
 }
-#simDiscreteTraits(4, c(2,3,3,4), "ER" ,0.9, SimTree, equal = F, Ordinal = F)
-
+#d <- simDiscreteTraits(10, rep(3, 10), "ER" , 0.5, tree, equal = F, Ordinal = F)
+# d$Q
+# get_stationary_distribution(d$Q)
 # Simulate correlated discrete traits with continuous traits
 ############################################################
 
@@ -236,7 +237,7 @@ ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
   # subclass:
   # - intervals: states are fairly split
   # - ordinal: ordered states, split is random
-  # - nominal_no: split is random, no order (shuffled)
+  # - non_eq_nominal: split is random, no order (shuffled)
   # return a vector of discrete value corresponding of continuous value in a same interval.
   
   if(subclass != "non_eq_nominal" & subclass != "ordinal" & subclass != "interval" & subclass != "eq_nominal"){
@@ -253,8 +254,8 @@ ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
     conversion <- as.character(findInterval(values, sort(breaks)))
   }
   
-  if(subclass == "nominal_neq"){
-    breaks <- sample(sort(values, Nstates-1))
+  if(subclass == "non_eq_nominal"){
+    breaks <- sample(sort(values), Nstates-1)
     nominal_values <- findInterval(values, sort(breaks))
     shuffle <- sample(0:(Nstates-1), Nstates, replace = FALSE)
     conversion <- as.character(1:length(nominal_values)) # vector with shuffling 
@@ -263,7 +264,7 @@ ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
     }
   }
   
-  if(subclass == "nominal_eq"){
+  if(subclass == "eq_nominal"){
     breaks <- seq(min(values), max(values), length.out = Nstates + 1)
     nominal_eq_values <- findInterval(values, breaks[-c(1, length(breaks))])
     shuffle <- sample(0:(Nstates-1), Nstates, replace = FALSE)
@@ -310,14 +311,14 @@ ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subcl
 #as first argument, param_tree(Birth, Death, Ntaxa), second arguments is a dataframe, third argument save in rds format
 simData <- function(param_tree, dataframe, save = NULL){
   
-  if(ncol(dataframe) != 8){
+  if(ncol(dataframe) != 9){
     stop("The number of columns should be equal to 8.")
   }
   
   #Rename columns of the data frame
   ################################
   newNames <-  c("nbr_traits", "class", "model", "states", "correlation", 
-                 "uncorr_traits", "fraction_uncorr_traits", "lambda")
+                 "uncorr_traits", "fraction_uncorr_traits", "lambda", "kappa")
   names(dataframe) <- newNames
   #in subclass there are, continuous, ordinal, interval(same quantity), nominal(no order).
   # uncorr_traits >= 0, 0<x<=1 fraction of uncovariant traits among the correlated group of traits, number of uncorrelated should be >=1. 
@@ -327,7 +328,7 @@ simData <- function(param_tree, dataframe, save = NULL){
   #######################################################################
   dataframe[,c(2:3,5)] <- apply(dataframe[,c(2:3,5)], 2, as.character)
   dataframe$nbr_traits <- as.integer(dataframe$nbr_traits) #if the value is a float, converted in integer. 
-  dataframe[,c(4,6:8)] <- apply(dataframe[,c(4,6:8)], 2, as.numeric)
+  dataframe[,c(4,6:9)] <- apply(dataframe[,c(4,6:9)], 2, as.numeric)
   
   
   #Check the data frame
@@ -416,9 +417,20 @@ simData <- function(param_tree, dataframe, save = NULL){
     subdata <- cbind(subdata, rows)
     
     #rescale phylogeny
+    
     lambdaCheck <- mean(subdata$lambda)
+    kappaCheck <- mean(subdata$kappa)
+    
+    if(lambdaCheck != 0 & kappaCheck != 0 & lambdaCheck != 1 & kappaCheck != 1){
+      stop("lambda or kappa should be equal to 1")
+    }
+    
     if(lambdaCheck != 1){
       subdataTree <- geiger::rescale(SimTree, "lambda", lambdaCheck)
+    }
+    
+    if(kappaCheck != 1){
+      subdataTree <- geiger::rescale(SimTree, "kappa", kappaCheck)
     }
     
     #check fraction of uncorrelated
@@ -427,10 +439,11 @@ simData <- function(param_tree, dataframe, save = NULL){
     }
     
     if(nrow(subdata) == 1){ #means no correlated with others group of traits
-      Sigmas <- simSigma(subdata$nbr_traits, uncovTraits = subdata$uncorr_traits, FracNocov = subdata$fraction_uncorr_traits)
+      Sigmas <- simSigma(subdata$nbr_traits, uncovTraits = subdata$uncorr_traits, 
+                         FracNocov = subdata$fraction_uncorr_traits)
       Thetas <- runif(subdata$nbr_traits, min = -10, max = 10)
       Alphas <- simAlpha(subdata$nbr_traits)
-      if(subdata$class == "continuous"){
+      if(subdata$class == "continuous" | (subdata$class != "continuous" & subdata$uncorr_traits != subdata$nbr_traits)){
         if(subdata$model == "BM1"){
           Alphas <- simAlpha(subdata$nbr_traits, alpha = 1e-5 * log(2))
         }
@@ -443,9 +456,27 @@ simData <- function(param_tree, dataframe, save = NULL){
                                              alpha = Alphas))
         #change columns names
         ContinuousData <- as.data.frame(ContinuousData)
-        colnames(ContinuousData) <- sprintf("F%s.%s/%s", seq(1:subdata$nbr_traits), i, subdata$row)
-        FinalData <- cbind(FinalData, ContinuousData)
+        colnames(ContinuousData) <- sprintf("F%s.%s/%s", 1:subdata$nbr_traits, i, subdata$row)
+        
+        if(subdata$class == "continuous"){
+          FinalData <- cbind(FinalData, ContinuousData)
+        }
+        
+        if(subdata$class != "continuous"){
+          indexColumConvert <- 1:subdata$nbr_traits
+          Nstates <- rep(subdata$states, subdata$nbr_traits)
+          class <- rep(subdata$class, subdata$nbr_traits)
+          ContinuousData <- scale(ContinuousData)
+          DiscreteData <- ChangeContinuousTraitInDiscrete(ContinuousData, indexColumConvert, Nstates, class)
+          
+          #change columns names
+          colnames(DiscreteData) <- sprintf("I%s.%s/%s", 1:subdata$nbr_traits, i, subdata$row)
+
+          FinalData <- cbind(FinalData, DiscreteData)
+        }
       }
+      
+      
       else{
         Ordinal <- FALSE
         if(subdata$class == "ordinal"){
@@ -459,9 +490,11 @@ simData <- function(param_tree, dataframe, save = NULL){
         DiscreteData$tip_mat <- as.data.frame(DiscreteData$tip_mat)
         colnames(DiscreteData$tip_mat) <- sprintf("I%s.%s/%s", seq(1:subdata$nbr_traits), i, subdata$row)
         
+        
         FinalData <- cbind(FinalData, DiscreteData$tip_mat)
       }
     }
+    
     if(nrow(subdata) > 1){
       #check if the dataframe is correctly filled
       wrong <- which(subdata$model != "BM1" & subdata$model != "OU1" | subdata$lambda != lambdaCheck)
@@ -599,7 +632,8 @@ simData <- function(param_tree, dataframe, save = NULL){
   }#close for loop
 
   row.names(FinalData) <- SimTree$tip.label
-
+  
+  
   if(length(grep("F.", colnames(FinalData))) > 0){
     #Standardize continuous traits mean = 0  and sd = 1
     ContiIndex <- grep("F.", colnames(FinalData))
@@ -633,11 +667,18 @@ simData <- function(param_tree, dataframe, save = NULL){
   FinalDiscreteData <- FinalData %>% select(starts_with("I"))
   FinlaContinuousData <- FinalData %>% select(starts_with("F"))
    
+  #check if all the trait have at least 2 states present
+  
+  stateCheck <- sum(apply(FinalDiscreteData, 2, function(x){ifelse(length(unique(x)) == 1, 0, 1)}))
+
+  if(stateCheck != ncol(FinalDiscreteData)){
+    return(0)
+  }
   
   #Define list of object
   ######################
   Data <- list(FinalData = FinalData, ContinuousData = FinlaContinuousData, DiscreteData = FinalDiscreteData, 
-               AlphaMatrices = AlphasList, Thetas = ThetasList, SigmaMatrices = SigmasList, TreeList = TreeList, 
+               AlphaMatrices = AlphasList, Thetas = ThetasList, SigmaMatrices = SigmasList, TreeList = TreeList,
                PhyloParam = param_tree, dataframe = dataframe)
   
   #Save data
@@ -651,11 +692,35 @@ simData <- function(param_tree, dataframe, save = NULL){
     
 } #close function
 
-#data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/DataTest.csv", header = TRUE, sep = ";")
-#data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DataTest2.csv", header = TRUE, sep = ";")
+#data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DiscreteUncorData10KAP0.csv", 
+#                 header = TRUE, sep = ";")
+# # data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/ContinuousData10LA001.csv", header = TRUE, sep = ";")
+# # #data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DataTest2.csv", header = TRUE, sep = ";")
 #tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 40)
-#tree_arg
+# # #tree_arg
 #new_data <- simData(tree_arg, data, save = NULL)
-#data
+# 
+# 
 
+
+
+
+# library(expm)
+# 
+# d$Q
+# DNA.alphabet <- c("a", "g", "c", "t")
+# 
+# Q <- matrix(1/3, nrow = 4, ncol = 4) # create 4x4 matrix and fill with 1/3
+# 
+# diag(Q) <- -1 # set diagonal to -1
+# 
+# colnames(Q) <- rownames(Q) <- DNA.alphabet
+# 
+# Q <- d$Q
+# 
+# P <- function(d) expm(d * Q) # Implement P(d)
+# 
+# P(100) # Characteristic timescale is 1, so 100 is ''close'' to infinity.
+# 
+# Q
 
