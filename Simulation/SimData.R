@@ -6,12 +6,13 @@
 #install.packages("tidyverse")
 
 
-library(mvMORPH)
-library(phytools)
-library(Matrix)
-library(castor)
-library(geiger)
-library(tidyverse)
+# library(mvMORPH)
+# library(phytools)
+# library(Matrix)
+# library(castor)
+# library(geiger)
+# library(tidyverse)
+# library(faux)
 
 #' @title Simulate variance-covariance matrix for morphological evolution
 #'
@@ -304,6 +305,111 @@ ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subcl
   return(dataframe)
 }
 
+
+corMatrixDisc <- function(nbrState, highCor){
+  lowCor <- (1 - highCor) / (nbrState - 1)
+  ProbMat <- matrix(rep(lowCor, nbrState * nbrState), nbrState, nbrState)
+  diag(ProbMat) <- highCor
+  IdxReorder <- sample(1:nbrState, nbrState)
+  ProbMat <- ProbMat[IdxReorder, ]
+  colnames(ProbMat) <- 0:(nbrState - 1)
+  rownames(ProbMat) <- 0:(nbrState - 1)
+  return(ProbMat)
+}
+
+
+corMatrixConti <- function(discreteTrait, highCor){
+  
+  discreteTrait <- as.numeric(discreteTrait)
+  discreteTrait2 <- discreteTrait
+  #shuffle discrete trait (randomize order of the states)
+  nbrState <- length(unique(discreteTrait))
+  S <- sample(0:(nbrState - 1), nbrState)
+  for(i in 1:nbrState){
+    discreteTrait[discreteTrait2 == S[i]] <- (i - 1)
+  }
+  contiTrait <- faux::rnorm_pre(discreteTrait, 
+                          mu =  mean(discreteTrait), 
+                          sd = sd(discreteTrait), 
+                          r = highCor, 
+                          empirical = FALSE, 
+                          threshold = 1e-12)
+  
+  return(contiTrait)
+}
+
+
+#' @title Discrete traits correlated to a single trait discrete trait
+#'
+#' @description This function generate a dataframe of discrete traits
+#'  which are all correlated with a single traits but uncorrelated with each other.  
+#'  
+#' @usage corDiscTraitsOneTrait(nbrTraits, discreteTrait, highCor)
+#'
+#' @param nbrTraits vector, defining the number of traits (columns)
+#' @param discreteTraits vector from which the simulated traits are correlated
+#' @param highCor numerical, strength of the correlation. if nbrState = 3 and highCor = 0.8, the other 2 traits will have
+#'  a correlation of (1-0.8)/(nbrTraits - 1)
+#' @return a dataframe of discrete traits where each column is a trait. Discrete traits are factors.
+#' 
+corDiscTraitsOneTrait <- function(nbrTraits, discreteTrait, highCor){
+  
+  #convert discreteTrait
+  discreteTrait <- as.numeric(discreteTrait)
+  
+  nbrState <- length(unique(discreteTrait))
+  ProbMat <- lapply(1:nbrTraits, function(x) corMatrixDisc(nbrState, highCor))
+  l <- lapply(1:nbrTraits, function(x){
+    print(x)
+    sapply(1:length(discreteTrait), function(y)
+      as.character(sample(0:(nbrState - 1), 1, prob = ProbMat[[x]][(discreteTrait[y] + 1), ])))
+  })
+  
+  discMatrix <- matrix(unlist(l), ncol = nbrTraits)
+  #colnames(finalMatrix) <- paste0("corD", 1:ncol(finalMatrix))
+  param <- list(ProbMat)
+  
+  #get correlation matrix of final matrix
+  finalMatrixConverted <- apply(discMatrix, 2, as.numeric)
+  correlationMatrix = cor(finalMatrixConverted)
+  
+  param <- c(param, list(correlationMatrix = correlationMatrix))
+  
+  return(list(data = as.data.frame(discMatrix, stringsAsFactors=TRUE), parameters = param))
+}
+
+
+#' @title Continuous traits correlated to a single trait discrete trait
+#'
+#' @description This function generate a dataframe of continuous traits
+#'  which are all correlated with a single traits but uncorrelated with each other.  
+#'  
+#' @usage corContiTraitsOneTrait(nbrTraits, discreteTrait, highCor)
+#'
+#' @param nbrTraits vector, defining the number of traits (columns)
+#' @param discreteTraits vector from which the simulated traits are correlated
+#' @param highCor numerical, strength of the correlation.
+#' @return a dataframe of continuous traits where each column is a trait. Continuous traits are numeric.
+corContiTraitsOneTrait <- function(nbrTraits, discreteTrait, highCor){
+  
+  #convert discreteTrait
+  discreteTrait <- as.numeric(discreteTrait)
+
+  contiMatrix <- lapply(1:nbrTraits, function(x) corMatrixConti(discreteTrait, highCor))
+  contiMatrix <- matrix(unlist(contiMatrix), ncol = nbrTraits)
+  #colnames(contiMatrix) <- paste0("corC", 1:ncol(contiMatrix))
+
+  #get correlation matrix of final matrix
+  finalMatrixConverted <- apply(contiMatrix, 2, as.numeric)
+  correlationMatrix = cor(finalMatrixConverted)
+  
+  param <- list(correlationMatrix = correlationMatrix)
+  
+  return(list(data = as.data.frame(contiMatrix, stringsAsFactors=TRUE), parameters = param))
+}
+
+
+
 #dataframe <- data
 #dataframe
 #param_tree <- tree_arg
@@ -311,14 +417,14 @@ ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subcl
 #as first argument, param_tree(Birth, Death, Ntaxa), second arguments is a dataframe, third argument save in rds format
 simData <- function(param_tree, dataframe, save = NULL){
   
-  if(ncol(dataframe) != 9){
-    stop("The number of columns should be equal to 8.")
+  if(ncol(dataframe) != 10){
+    stop("The number of columns should be equal to 10.")
   }
   
   #Rename columns of the data frame
   ################################
   newNames <-  c("nbr_traits", "class", "model", "states", "correlation", 
-                 "uncorr_traits", "fraction_uncorr_traits", "lambda", "kappa")
+                 "uncorr_traits", "fraction_uncorr_traits", "lambda", "kappa", "highCor")
   names(dataframe) <- newNames
   #in subclass there are, continuous, ordinal, interval(same quantity), nominal(no order).
   # uncorr_traits >= 0, 0<x<=1 fraction of uncovariant traits among the correlated group of traits, number of uncorrelated should be >=1. 
@@ -328,7 +434,7 @@ simData <- function(param_tree, dataframe, save = NULL){
   #######################################################################
   dataframe[,c(2:3,5)] <- apply(dataframe[,c(2:3,5)], 2, as.character)
   dataframe$nbr_traits <- as.integer(dataframe$nbr_traits) #if the value is a float, converted in integer. 
-  dataframe[,c(4,6:9)] <- apply(dataframe[,c(4,6:9)], 2, as.numeric)
+  dataframe[,c(4,6:10)] <- apply(dataframe[,c(4,6:10)], 2, as.numeric)
   
   
   #Check the data frame
@@ -344,7 +450,8 @@ simData <- function(param_tree, dataframe, save = NULL){
   dataframe$model[str_detect(dataframe$model, "^[oO]")] <- "OU1"
   dataframe$model[str_detect(dataframe$model, "^[eE]")] <- "ER"
   dataframe$model[str_detect(dataframe$model, "^[sS]")] <- "SYM"
-  dataframe$model[str_detect(dataframe$model, "^[aR]")] <- "ARD"
+  dataframe$model[str_detect(dataframe$model, "^[aA]")] <- "ARD"
+  dataframe$model[str_detect(dataframe$model, "^[mM]")] <- "Manual"
   
   
   #Check if all the rows are filled correctly
@@ -352,19 +459,25 @@ simData <- function(param_tree, dataframe, save = NULL){
   wrong <- which(dataframe$class == "continuous" &
                    (dataframe$model == "BM1" | dataframe$model == "OU1") & dataframe$states != 1)
   if(length(wrong) != 0){
-    stop(paste("This line ", wrong, "is not filled correctly \n"))
+    stop(paste("The line ", wrong, "is not filled correctly \n"))
   }
   
   wrong <- which(dataframe$class != "continuous" & dataframe$states <= 1)
   if(length(wrong) != 0){
-    stop(paste("This line ", wrong, "is not filled correctly \n"))
+    stop(paste("The line ", wrong, "is not filled correctly \n"))
   }
   
   wrong <- which(dataframe$lambda < 0 & dataframe$lambda > 1)
   if(length(wrong) != 0){
-    stop(paste("This line ", wrong, "is not filled correctly \n"))
+    stop(paste("The line ", wrong, "is not filled correctly \n"))
   }
   
+  indexManual <- which(dataframe$model == "Manual")
+  wrong <- (1 %in% indexManual | 1 %in% which(dataframe$class == "continuous"))
+  if(wrong){
+    stop(paste("This dataframe should contain a discrete 
+               trait at the first position and/or not the Manual simulated trait at the first row of the dataframe\n"))
+  }
   
   # Simulate phylogeny
   ####################
@@ -381,7 +494,6 @@ simData <- function(param_tree, dataframe, save = NULL){
     }
   }
   
-  
   #Simulate by correlation
   ########################
   
@@ -395,18 +507,21 @@ simData <- function(param_tree, dataframe, save = NULL){
   ThetasList <- list()
   SigmasList <- list()
   TreeList <- list()
+  manualParamList <- list()
+  manualParam <- NULL
   for(i in correlation_values){
     subdataTree <- SimTree
     wrong <- which(sum(dataframe$correlation == i) == 1 & dataframe$correlation == i & dataframe$class != "continuous" 
                    & dataframe$uncorr_traits != dataframe$nbr_traits & 
                      dataframe$fraction_uncorr_traits != 0 & (dataframe$model != "OU1" | dataframe$model != "BM1"))
     if(length(wrong) != 0){
-      stop(paste("This line ", wrong, "is not filled correctly \n"))
+      stop(paste("The line ", wrong, "is not filled correctly \n"))
     }
     
-    wrong <- which(dataframe$nbr_traits == 1 & dataframe$correlation == i & sum(dataframe$correlation == i) == 1 & (dataframe$uncorr_traits != 1 | dataframe$fraction_uncorr_traits != 0))
+    wrong <- which(dataframe$nbr_traits == 1 & dataframe$correlation == i & sum(dataframe$correlation == i) == 1 &
+                     (dataframe$uncorr_traits != 1 | dataframe$fraction_uncorr_traits != 0))
     if(length(wrong) != 0){
-      stop(paste("This line ", wrong, "is not filled correctly \n"))
+      stop(paste("The line ", wrong, "is not filled correctly \n"))
     }
     #build a subset of traits being correlated together
     subdata <- subset(dataframe, dataframe$correlation == i)
@@ -443,17 +558,31 @@ simData <- function(param_tree, dataframe, save = NULL){
                          FracNocov = subdata$fraction_uncorr_traits)
       Thetas <- runif(subdata$nbr_traits, min = -10, max = 10)
       Alphas <- simAlpha(subdata$nbr_traits)
-      if(subdata$class == "continuous" | (subdata$class != "continuous" & subdata$uncorr_traits != subdata$nbr_traits)){
+      #if(subdata$class == "continuous" | (subdata$class != "continuous" & subdata$uncorr_traits != subdata$nbr_traits)){
+      if(subdata$class == "continuous" | (subdata$class != "continuous" & 
+                                          (subdata$model == "BM1" | subdata$model == "OU1"))){
         if(subdata$model == "BM1"){
           Alphas <- simAlpha(subdata$nbr_traits, alpha = 1e-5 * log(2))
         }
-        #simulate independent continuous traits
-        ContinuousData <- mvSIM(tree = subdataTree,
-                                model = subdata$model,
-                                param = list(ntraits = subdata$nbr_traits,
-                                             theta = Thetas, #theta = ancestral states
-                                             sigma = Sigmas,
-                                             alpha = Alphas))
+
+        if(subdata$model != "Manual"){
+          #simulate independent continuous traits
+          ContinuousData <- mvSIM(tree = subdataTree,
+                                  model = subdata$model,
+                                  param = list(ntraits = subdata$nbr_traits,
+                                               theta = Thetas, #theta = ancestral states
+                                               sigma = Sigmas,
+                                               alpha = Alphas))
+        }
+          
+        if(subdata$model == "Manual"){
+          ContinuousData <- corContiTraitsOneTrait(subdata$nbr_traits, FinalData[, 1], 
+                                              subdata$highCor)$data
+          print(ContinuousData)
+          manualParam <- ContinuousData$param
+
+        }
+        
         #change columns names
         ContinuousData <- as.data.frame(ContinuousData)
         colnames(ContinuousData) <- sprintf("F%s.%s/%s", 1:subdata$nbr_traits, i, subdata$row)
@@ -467,6 +596,7 @@ simData <- function(param_tree, dataframe, save = NULL){
           Nstates <- rep(subdata$states, subdata$nbr_traits)
           class <- rep(subdata$class, subdata$nbr_traits)
           ContinuousData <- scale(ContinuousData)
+          
           DiscreteData <- ChangeContinuousTraitInDiscrete(ContinuousData, indexColumConvert, Nstates, class)
           
           #change columns names
@@ -482,16 +612,33 @@ simData <- function(param_tree, dataframe, save = NULL){
         if(subdata$class == "ordinal"){
           Ordinal <- TRUE
         }
-        #simulate independent discrete traits
-        DiscreteData <- simDiscreteTraits(subdata$nbr_traits, 
-                                          subdata$states, subdata$model, max_rate, subdataTree, equal = FALSE, Ordinal)
+        
+        if(subdata$model != "Manual"){
+          #simulate independent discrete traits
+          DiscreteData <- simDiscreteTraits(subdata$nbr_traits, 
+                                            subdata$states, subdata$model, max_rate, subdataTree, equal = FALSE, Ordinal)
+          
+          #change columns names
+          DiscreteData$tip_mat <- as.data.frame(DiscreteData$tip_mat)
+          colnames(DiscreteData$tip_mat) <- sprintf("I%s.%s/%s", seq(1:subdata$nbr_traits), i, subdata$row)
+          
+          
+          FinalData <- cbind(FinalData, DiscreteData$tip_mat)
+        }
+        
+        if(subdata$model == "Manual"){
+          
+          DiscreteData <- corDiscTraitsOneTrait(subdata$nbr_traits, FinalData[, 1], 
+                                            subdata$highCor)$data
+          
+          manualParam <- DiscreteData$param
+          
+          #change columns names
+          colnames(DiscreteData) <- sprintf("I%s.%s/%s", seq(1:subdata$nbr_traits), i, subdata$row)
+          
+          FinalData <- cbind(FinalData, DiscreteData)
+        }
 
-        #change columns names
-        DiscreteData$tip_mat <- as.data.frame(DiscreteData$tip_mat)
-        colnames(DiscreteData$tip_mat) <- sprintf("I%s.%s/%s", seq(1:subdata$nbr_traits), i, subdata$row)
-        
-        
-        FinalData <- cbind(FinalData, DiscreteData$tip_mat)
       }
     }
     
@@ -551,7 +698,7 @@ simData <- function(param_tree, dataframe, save = NULL){
 
       
       
-      #If correlated discrete traits with continuous traits
+      #If correlated discrete traits from continuous traits
       discreteSubdata <- subset(subdata, subdata$class != "continuous")
       if(nrow(discreteSubdata) >= 1){
         Nstates <- rep(discreteSubdata$states, discreteSubdata$nbr_traits)
@@ -627,8 +774,17 @@ simData <- function(param_tree, dataframe, save = NULL){
     ThetasList[[i]] <- Thetas
     SigmasList[[i]] <- Sigmas
     TreeList[[i]] <- SimTree
+    manualParamList[[i]] <- manualParam
     
-     
+    #check if all the trait have the number of states requested
+    Ddata <- FinalData %>% select(starts_with("I"))
+    if(!is.null(Ddata)){
+      stateCheck <- sum(apply(Ddata, 2, function(x){ifelse(length(unique(x)) < subdata$states, 0, 1)}))
+      
+      if(stateCheck != ncol(Ddata)){
+        return(0)
+      }
+    }
   }#close for loop
 
   row.names(FinalData) <- SimTree$tip.label
@@ -666,20 +822,12 @@ simData <- function(param_tree, dataframe, save = NULL){
   
   FinalDiscreteData <- FinalData %>% select(starts_with("I"))
   FinlaContinuousData <- FinalData %>% select(starts_with("F"))
-   
-  #check if all the trait have at least 2 states present
-  
-  stateCheck <- sum(apply(FinalDiscreteData, 2, function(x){ifelse(length(unique(x)) == 1, 0, 1)}))
-
-  if(stateCheck != ncol(FinalDiscreteData)){
-    return(0)
-  }
   
   #Define list of object
   ######################
   Data <- list(FinalData = FinalData, ContinuousData = FinlaContinuousData, DiscreteData = FinalDiscreteData, 
-               AlphaMatrices = AlphasList, Thetas = ThetasList, SigmaMatrices = SigmasList, TreeList = TreeList,
-               PhyloParam = param_tree, dataframe = dataframe)
+               AlphaMatrices = AlphasList, Thetas = ThetasList, SigmaMatrices = SigmasList, TreeList = TreeList[1],
+               PhyloParam = param_tree, manual_para = manualParamList, dataframe = dataframe)
   
   #Save data
   ##########
@@ -692,35 +840,15 @@ simData <- function(param_tree, dataframe, save = NULL){
     
 } #close function
 
-#data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DiscreteUncorData10KAP0.csv", 
-#                 header = TRUE, sep = ";")
-# # data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/ContinuousData10LA001.csv", header = TRUE, sep = ";")
-# # #data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DataTest2.csv", header = TRUE, sep = ";")
-#tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 40)
-# # #tree_arg
-#new_data <- simData(tree_arg, data, save = NULL)
-# 
-# 
-
-
-
-
-# library(expm)
-# 
-# d$Q
-# DNA.alphabet <- c("a", "g", "c", "t")
-# 
-# Q <- matrix(1/3, nrow = 4, ncol = 4) # create 4x4 matrix and fill with 1/3
-# 
-# diag(Q) <- -1 # set diagonal to -1
-# 
-# colnames(Q) <- rownames(Q) <- DNA.alphabet
-# 
-# Q <- d$Q
-# 
-# P <- function(d) expm(d * Q) # Implement P(d)
-# 
-# P(100) # Characteristic timescale is 1, so 100 is ''close'' to infinity.
-# 
-# Q
+# data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DiscreteBM1Data.csv", 
+#                    header = TRUE, sep = ";")
+# # # 
+# # # # # data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/ContinuousData10LA001.csv", header = TRUE, sep = ";")
+# # # # # #data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DataTest2.csv", header = TRUE, sep = ";")
+# tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 100)
+# # # # # # #tree_arg
+# new_data <- simData(tree_arg, data, save = NULL)
+# # # 
+# new_data$FinalData
+# d <- new_data
 

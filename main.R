@@ -37,6 +37,7 @@ require(tibble)
 require(Rphylopars)
 require(corHMM)
 require(reticulate)
+require(faux)
 
 setwd("/home/mgendre/Cluster/scripts/")
 #setwd("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/Phylo_ImputationLocal/")
@@ -54,8 +55,7 @@ if (length(args)==0) {
 
 missingRates <- as.numeric(args[1])
 
-directoryName <- paste(gsub("\\.", "", round(missingRates, 2)), "_10T")
-
+directoryName <- paste0(gsub("\\.", "", round(missingRates, 2)), "_10T")
 
 # Create directory
 dir.create("../Simulation", showWarnings = FALSE)
@@ -95,34 +95,31 @@ tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 100)
 #Run scripts
 #############
 SlurmID <- as.numeric(Sys.getenv("SLURM_ARRAY_TASK_ID"))
-#missingRates <- 0.05
-#missingRates <- 1/3
-#missingRates <- 0.5
-#missingRates <- as.numeric(args[1])
 
 for(data in 1:(length(datasetList))){
   set.seed(SlurmID)
   #Simulate datasets. Output: SimulatedData
   print("Step 1: Simulate data")
-  nameSimulation <- file.path("../Simulation/", directoryName, "/FullData", sprintf("simulatedData%s_R%d_V%s",
+  nameSimulation <- file.path("../Simulation/", directoryName, "/FullData", sprintf("simulatedData%s_R%d_%s",
                                                                 nameFiles[data], SlurmID, 
                                                                 paste(as.character(round(missingRates, 2)),
                                                                 collapse = "-")))
   simulatedData <- simData(tree_arg, datasetList[[data]], save = nameSimulation)
   
   #resimulate data in case a trait contains only 1 trait
-  dataOK <- FALSE
-  while(!dataOK){
-    simulatedData <- simData(tree_arg, datasetList[[data]], save = nameSimulation)
-    if(length(simulatedData) != 1){
-      dataOK <- TRUE
+  if(length(simulatedData) == 1){
+    dataOK <- FALSE
+    while(!dataOK){
+      simulatedData <- simData(tree_arg, datasetList[[data]], save = nameSimulation)
+      if(length(simulatedData) != 1){
+        dataOK <- TRUE
+      }
     }
   }
-  
 
   #Simulate NA in different proportions in full data. Output: NaNImputed
   print("Step 2: Simulate NA in data")
-  nameNaNSimulation <- file.path("../Simulation/", directoryName, "/MissingData", sprintf("NaNData%s_R%d_V%s",
+  nameNaNSimulation <- file.path("../Simulation/", directoryName, "/MissingData", sprintf("NaNData%s_R%d_%s",
                                                                       nameFiles[data], SlurmID, 
                                                                       paste(as.character(round(missingRates, 2)),
                                                                       collapse = "-")))
@@ -131,10 +128,21 @@ for(data in 1:(length(datasetList))){
   missTraits <- ncol(simulatedData$FinalData)
   NaNData <- NaNImputation(missingRates, partitions, simulatedData, 
                            missTraits, save = nameNaNSimulation)
+  #resimulate data in case a in Manual design the discrete trait doesn't contain NA
+  if(length(NaNData) == 1){
+    NaNdataOK <- FALSE
+    while(!dataOK){
+      NaNData <- NaNImputation(missingRates, partitions, simulatedData, 
+                               missTraits, save = nameNaNSimulation)
+      if(length(NaNData) != 1){
+        NaNdataOK <- TRUE
+      }
+    }
+  }
   
   #Impute data where missing values (NA) are. Output: 
   print("Step 3: missing Data imputation")
-  nameImputation <- file.path("../Simulation/", directoryName, "/Results/Replicates", sprintf("Results%s_%d_R%d_V%s", 
+  nameImputation <- file.path("../Simulation/", directoryName, "/Results/Replicates", sprintf("Results%s_%d_R%d_%s", 
                                                                           nameFiles[data], data, SlurmID, 
                                                                           paste(as.character(round(missingRates, 2)),
                                                                           collapse = "-")))
@@ -142,7 +150,7 @@ for(data in 1:(length(datasetList))){
   ImputationApproachesNames <- c("imputeDiscrete", "imputeContinuous", "imputeMICE", "imputeMissForest", 
                                  "imputeKNN", "gainR")   
 
-  variance_fractions <- c(0, 0.95)
+  variance_fractions <- c(0, 0.95, 2)
 
   generateResults(ImputationApproachesNames, NaNData, simulatedData, 
             		variance_fractions, save = nameImputation, addHint = TRUE)

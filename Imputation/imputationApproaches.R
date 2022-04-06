@@ -126,7 +126,7 @@ imputeOneDiscreteTrait <- function(missingData, Data){
     #change order of the rows, match the order of the phylogeny
     missingData <- missingData[match(Data$TreeList$`0`$tip.label, row.names(missingData)), drop = FALSE]
   }
-  
+
   colName <- names(missingData)
   #print(missingData)
   
@@ -150,9 +150,7 @@ imputeOneDiscreteTrait <- function(missingData, Data){
     return(list(imputedData = missingData, parameters = list("noModel")))
   }
   
-  #get the right tree
-  correlationGroup <- as.numeric(str_extract(colnames(missingData), "(?<=\\.)\\d+"))[1]
-  tree <- Data$TreeList[[correlationGroup + 1]]
+  tree <- Data$TreeList$`0`
 
   #add the tip names in the dataframe
   missingData <- cbind(species = row.names(missingData), missingData)
@@ -251,11 +249,8 @@ imputeContinousTraits <- function(missingData, Data){
   
   Rphylopars <- tryCatch(
    {
-     #get the right tree
-     correlationGroup <- as.numeric(str_extract(colnames(missingData), "(?<=\\.)\\d+"))[1]
-     tree <- Data$TreeList[[correlationGroup + 1]]
-     treeDouble <- tree
-  
+     tree <- Data$TreeList$`0`
+      
      if(length(setdiff(rownames(missingData), tree$tip.label)) != 0){
        rownames(missingData) <- tree$tip.label
      }
@@ -263,13 +258,13 @@ imputeContinousTraits <- function(missingData, Data){
      #add species (tips) in the dataframe
      missingData <- tibble::add_column(missingData, species = row.names(missingData) , .before = 1)
      #convert the species names in double
-     treeDouble$tip.label <- 1:length(tree$tip.label)
+     #treeDouble$tip.label <- 1:length(tree$tip.label)
   
-     missingData$species <- sapply(X = missingData$species, FUN = function(x){which(tree$tip.label==x)})
+     #missingData$species <- sapply(X = missingData$species, FUN = function(x){which(tree$tip.label==x)})
  
      #Just to make sure all the columns are being processed as double 
-     missingData[,1:ncol(missingData)] <- 
-       apply(X = missingData[,1:ncol(missingData)],MARGIN = 2,FUN = as.double)
+     #missingData[,1:ncol(missingData)] <- 
+     #  apply(X = missingData[,1:ncol(missingData)],MARGIN = 2,FUN = as.double)
   
      #impute
      models <- c("BM", "OU")
@@ -281,7 +276,7 @@ imputeContinousTraits <- function(missingData, Data){
   
      for(i in 1:length(models)){
 
-        imputeData <- phylopars(trait_data = missingData, tree = treeDouble, model = models[i],
+        imputeData <- phylopars(trait_data = missingData, tree = tree, model = models[i],
                                phylo_correlated = phylo_correlated, pheno_correlated = pheno_correlated)
 
         imputations[[i]] <- imputeData
@@ -350,10 +345,7 @@ imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0
   
   if(variance_fraction != 0 & variance_fraction != 2){
     
-    #get the right tree
-    correlationGroup <- as.numeric(str_extract(colnames(missingData), "(?<=\\.)\\d+"))[1]
-    
-    tree <- Data$TreeList[[correlationGroup + 1]]
+    tree <- Data$TreeList$`0`
     
     eigen <- get_eigenvec(tree, variance_fraction)
     missingData <- cbind(missingData[, 1:ncol(missingData), drop = FALSE],
@@ -429,9 +421,7 @@ imputeMissForest <- function(missingData, variance_fraction = 0, maxiter = 10, n
   # want to include phylogeny information
   if(variance_fraction != 0 & variance_fraction != 2){
     
-    #get the right tree
-    correlationGroup <- as.numeric(str_extract(colnames(missingData), "(?<=\\.)\\d+"))[1]
-    tree <- Data$TreeList[[correlationGroup + 1]]
+    tree <- Data$TreeList$`0`
     
     eigen <- get_eigenvec(tree, variance_fraction)
     missingData <- cbind(missingData[, 1:ncol(missingData), drop = FALSE], 
@@ -481,9 +471,7 @@ imputeKNN <- function(missingData, k, numFun, catFun, variance_fraction = 0, Dat
     
   if(variance_fraction != 0 & variance_fraction != 2){
     
-    #get the right tree
-    correlationGroup <- as.numeric(str_extract(colnames(missingData), "(?<=\\.)\\d+"))[1]
-    tree <- Data$TreeList[[correlationGroup + 1]]
+    tree <- Data$TreeList$`0`
     
     eigen <- get_eigenvec(tree, variance_fraction)
     missingData <- cbind(missingData[, 1:ncol(missingData), drop = FALSE], 
@@ -555,9 +543,7 @@ gainR <- function(missingData, variance_fraction, Data, batch_size = round(ncol(
   # want to include phylogeny information
   if(variance_fraction != 0 & variance_fraction != 2){
     
-    #get the right tree
-    correlationGroup <- as.numeric(str_extract(colnames(missingData), "(?<=\\.)\\d+"))[1]
-    tree <- Data$TreeList[[correlationGroup + 1]]
+    tree <- Data$TreeList$`0`
     
     eigen <- get_eigenvec(tree, variance_fraction)
     missingData <- cbind(missingData[, 1:ncol(missingData), drop = FALSE], 

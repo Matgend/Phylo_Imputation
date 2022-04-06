@@ -3,100 +3,7 @@
 
 #import imputation functions
 source("./Imputation/imputationApproaches.R")
-
-
-#ERROR
-######
-#' @title Calculate error of imputation
-#'
-#' @description This function calculates the RMSE for imputed continuous data, the absolute 
-#' error for imputed ordinal data and misclassification for the other subcategories of discrete data
-#'
-#' @usage imputationError(imputedData, trueData, missingData, imputationApproachesName, Data)
-#'
-#' @param imputedData array of imputed data
-#' @param trueData array of true data
-#' @param missingData array of data with missing values
-#' @param Data simulated Data object
-#' @return return a data.frame with in the first column the trait names and in the second the errors
-#'
-imputationError <- function(imputedData, trueData, missingData, imputationApproachesName, Data){
-  
-  # #change imputation approach name
-  # imputationApproachesName[str_detect(imputationApproachesName, "MICE")] <- "MICE"
-  # imputationApproachesName[str_detect(imputationApproachesName, "Miss")] <- "MissForest"
-  # imputationApproachesName[str_detect(imputationApproachesName, "KNN")] <- "KNN"
-  # imputationApproachesName[str_detect(imputationApproachesName, "gain")] <- "GAIN"
-  
-
-  #get the ordinal trait reference
-  ordinalTraits <- which(Data$dataframe$class == "ordinal") #give the row in dataframe which correspond to /n in data names
-  errors <- c()
-  traitNames <- c() 
-  for (c in 1:ncol(missingData)){
-    
-    #know is NaNs in the columns(trait)
-    NaNRowIndex <- which(is.na(missingData[,c]))
-    
-    if(length(NaNRowIndex != 0)){
-      
-      traitNames <- c(traitNames, names(trueData[c]))
-      missingValues <- missingData[NaNRowIndex, c]
-      trueValues <- trueData[NaNRowIndex, c]
-      imputedValues <- imputedData[NaNRowIndex, c]
-
-      #in case continuous data
-      if(length(grep("F.", names(missingData)[c])) == 1){
-        #print("continuous")
-        #rmse
-        error <- sqrt(mean((as.numeric(imputedValues) - as.numeric(trueValues))^2))
-        
-      }
-      
-      #in case ordinal trait
-      else if(length(ordinalTraits) != 0 & length(grep(paste0("/", ordinalTraits), names(missingData)[c])) == 1){
-        #print("ordinal")
-        #imputation error for ordinal traits (absolute error)
-        error <- mean(abs((as.numeric(imputedValues) - as.numeric(trueValues)) / as.numeric(trueValues)))
-      }
-      
-      #in case discrete data
-      else{
-        #print("discrete")
-        error <- (sum(as.numeric(imputedValues) != as.numeric(trueValues)) / length(trueValues)) 
-        #error <- length(setdiff(imputedValues, trueValues)) / length(trueValues)
-      }
-      errors <- c(errors, error)
-    }
-  }
-  output <- data.frame(trait = traitNames, c2 = errors)
-  names(output)[2] <- imputationApproachesName
-
-  return(output)
-}
-
-#' @title Delete empty list
-#'
-#' @description This function delete lists of list that are empty 
-#'
-#' @usage deleteEmptylist(lists)
-#'
-#' @param lists list containing lists (lists of list)
-#' @return return the list of lists without the empty list
-
-deleteEmptylist <- function(lists){
-  saveIndex <- c()
-  for (l in 1:length(lists)){
-    if(length(lists[[l]]) == 0){
-      saveIndex <- c(saveIndex, l)
-    }
-  }
-  if (length(saveIndex) != 0){
-    lists[[saveIndex]] <- NULL
-  }
-  return(lists)
-}
-
+source("utils.R")
 
 
 #' @title Impute matrix containing missing values
@@ -270,6 +177,7 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
       varf <- NA
       t <- NA
       error <- NULL
+      
       #only discrete data
       if(length(grep("I.", names(partition))) == ncol(partition)){
         start_time <- Sys.time()
@@ -343,8 +251,6 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
           discColums <- grep("I.", names(partition))
           contiColums <- grep("F.", names(partition))
           
-          print(names(partition))
-          
           if(length(discColums) != 0 & length(contiColums) != 0 &
              (length(discColums) + length(contiColums)) == ncol(partition)){
 
@@ -362,7 +268,7 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
           }
 
         }
-
+        
         method <- 1
         while(method < ((length(ImputationApproachesNames) - 2) * 2)){
 
