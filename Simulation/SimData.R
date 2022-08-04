@@ -360,7 +360,6 @@ corDiscTraitsOneTrait <- function(nbrTraits, discreteTrait, highCor){
   nbrState <- length(unique(discreteTrait))
   ProbMat <- lapply(1:nbrTraits, function(x) corMatrixDisc(nbrState, highCor))
   l <- lapply(1:nbrTraits, function(x){
-    print(x)
     sapply(1:length(discreteTrait), function(y)
       as.character(sample(0:(nbrState - 1), 1, prob = ProbMat[[x]][(discreteTrait[y] + 1), ])))
   })
@@ -532,7 +531,6 @@ simData <- function(param_tree, dataframe, save = NULL){
     subdata <- cbind(subdata, rows)
     
     #rescale phylogeny
-    
     lambdaCheck <- mean(subdata$lambda)
     kappaCheck <- mean(subdata$kappa)
     
@@ -578,7 +576,7 @@ simData <- function(param_tree, dataframe, save = NULL){
         if(subdata$model == "Manual"){
           ContinuousData <- corContiTraitsOneTrait(subdata$nbr_traits, FinalData[, 1], 
                                               subdata$highCor)$data
-          print(ContinuousData)
+
           manualParam <- ContinuousData$param
 
         }
@@ -840,15 +838,13 @@ simData <- function(param_tree, dataframe, save = NULL){
     
 } #close function
 
-# data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DiscreteBM1Data.csv", 
-#                    header = TRUE, sep = ";")
-# # # 
-# # # # # data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/ContinuousData10LA001.csv", header = TRUE, sep = ";")
-# # # # # #data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DataTest2.csv", header = TRUE, sep = ";")
+# data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DiscreteBM1DataKAP0.csv", header = TRUE, sep = ";")
+# # # # 
+# # # # # # data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/ContinuousData10LA001.csv", header = TRUE, sep = ";")
+# # # # # # #data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DataTest2.csv", header = TRUE, sep = ";")
 # tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 100)
-# # # # # # #tree_arg
+# # # # # # # #tree_arg
 # new_data <- simData(tree_arg, data, save = NULL)
 # # # 
 # new_data$FinalData
-# d <- new_data
 
