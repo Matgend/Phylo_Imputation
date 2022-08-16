@@ -113,10 +113,6 @@ simSigma <- function(Ntraits, Cor = NULL, Sigma2 = NULL, uncovTraits = NULL, Fra
   }
   return(Sigmas)
 }
-#simSigma(3, uncovTraits = 0)
-#simSigma(5, uncovTraits = 0, FracNocov = 0.6)
-#simSigma(5, FracNocov = 0.6)
-#simSigma(5, uncovTraits = 0)
 
 #' @title Simulate alpha matrix for morphological evolution
 #'
@@ -157,8 +153,6 @@ simAlpha <- function(Ntraits, alpha = NULL) {
   return(AlphaMat)
 }
 
-#Simulate discrete traits
-#########################
 #' @title Simulate discrete traits for all species according to the MK model
 #'
 #' @description This function generates matrix of discrete values (states) of
@@ -168,13 +162,16 @@ simAlpha <- function(Ntraits, alpha = NULL) {
 #'
 #' @param Ntraits number of traits 
 #' @param Nstates number of states of the defined traits (could be a vector or a value)
-#' @param rate_model vector, rate model that the transition matrix must satisfy. Chose between "ER" (=all permitted transitions occur at the same rate), "SYM" (=hat backward & forward transitions occur at the same rate) and "ARD" (=all allowed transitions can occur at different rates). 
+#' @param rate_model vector, rate model that the transition matrix must satisfy. Chose between "ER" (=all permitted transitions 
+#' occur at the same rate), "SYM" (=hat backward & forward transitions occur at the same rate) and "ARD" (=all allowed 
+#' transitions can occur at different rates). 
 #' @param tree stochastic birth-death trees
-#' @param equal if TRUE, the transition matrix is equal for all the traits. If FALSE all the traits have a different transition matrix. By default is TRUE. 
+#' @param equal if TRUE, the transition matrix is equal for all the traits. If FALSE all the traits have a different transition 
+#' matrix. By default is TRUE. 
 #' @param Ordinal simulate ordinal data. Default is FALSE
-#' @return list containing morphological evolution for each trait and each species, a matrix Ntrait x Ntrait for simulating trait evolution and sigma matrix Ntraits x Ntraits
+#' @return list containing morphological evolution for each trait and each species, a matrix Ntrait x Ntrait for simulating trait
+#' evolution and sigma matrix Ntraits x Ntraits
 #' 
-
 simDiscreteTraits <- function(Ntraits, Nstates, rate_model, max_rate, tree, equal = TRUE, Ordinal = FALSE){
   
   if(rate_model != "ER" & rate_model != "SYM" & rate_model != "ARD"){
@@ -225,22 +222,23 @@ simDiscreteTraits <- function(Ntraits, Nstates, rate_model, max_rate, tree, equa
   
   return(list(tip_mat = tip_mat, node_mat = node_mat))
 }
-#d <- simDiscreteTraits(10, rep(3, 10), "ER" , 0.5, tree, equal = F, Ordinal = F)
-# d$Q
-# get_stationary_distribution(d$Q)
-# Simulate correlated discrete traits with continuous traits
-############################################################
 
+#' @title Converts a single continuous variable in discrete variable
+#'
+#' @description This function converts a continuous variable in discrete variable. The variable can be converted as interval,
+#' ordinal or nominal. 
+#'
+#' @usage ConvertContinousInDiscreteValues(values, Nstates, subclass)
+#'
+#' @param values vector of float
+#' @param Nstates number of states of the defined traits
+#' @param subclass - intervals: states are fairly split
+#                  - ordinal: ordered states, split is random
+#                  - non_eq_nominal: split is random, no order (shuffled)
+#' @return return the vector with integer instead of floats
+#' 
 ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
-  #made 2 replacement to don't create an extra matrix
-  # values: vector of values
-  # Nstates: number of states of the defined traits (could be a vector or a value)
-  # subclass:
-  # - intervals: states are fairly split
-  # - ordinal: ordered states, split is random
-  # - non_eq_nominal: split is random, no order (shuffled)
-  # return a vector of discrete value corresponding of continuous value in a same interval.
-  
+
   if(subclass != "non_eq_nominal" & subclass != "ordinal" & subclass != "interval" & subclass != "eq_nominal"){
     stop("The subclass should be one of the following: nominal, ordinal or interval")
   }
@@ -264,25 +262,37 @@ ConvertContinousInDiscreteValues <- function(values, Nstates, subclass){
       conversion[nominal_values == unique(nominal_values)[i]] <- shuffle[i]
     }
   }
-  
-  if(subclass == "eq_nominal"){
-    breaks <- seq(min(values), max(values), length.out = Nstates + 1)
-    nominal_eq_values <- findInterval(values, breaks[-c(1, length(breaks))])
-    shuffle <- sample(0:(Nstates-1), Nstates, replace = FALSE)
-    conversion <- as.character(1:length(nominal_eq_values)) # vector with shuffling 
-    for (i in 1:length(unique(nominal_eq_values))){
-      conversion[nominal_eq_values == unique(nominal_eq_values)[i]] <- shuffle[i]
-    }
-  }
+  # 
+  # if(subclass == "eq_nominal"){
+  #   breaks <- seq(min(values), max(values), length.out = Nstates + 1)
+  #   nominal_eq_values <- findInterval(values, breaks[-c(1, length(breaks))])
+  #   shuffle <- sample(0:(Nstates-1), Nstates, replace = FALSE)
+  #   conversion <- as.character(1:length(nominal_eq_values)) # vector with shuffling 
+  #   for (i in 1:length(unique(nominal_eq_values))){
+  #     conversion[nominal_eq_values == unique(nominal_eq_values)[i]] <- shuffle[i]
+  #   }
+  # }
   
   return(conversion)
 }
 
+#' @title Converts a several continuous variable in discrete variables
+#'
+#' @description This function converts continuous variables in discrete variables. The variables can be converted as interval,
+#' ordinal or nominal. 
+#'
+#' @usage ChangeContinuousTraitInDiscrete(Matrix, columnsIndex, Nstates, subclass)
+#'
+#' @param Matrix array matrix of continuous variables 
+#' @param columnsIndex vector of integers mentioning the columns to convert in integers
+#' @param Nstates number of states of the defined traits (could be a vector or a value)
+#' @subclass - intervals: states are fairly split
+#            - ordinal: ordered states, split is random
+#            - non_eq_nominal: split is random, no order (shuffled)
+#' @return return a data frame with the integer variables and continuous variables. 
+#' 
 ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subclass){
-  # apply the function below to the columns of a matrix which is converted in a dataframe.
-  # intervals could be a scalar or a vector of boolean.
-  # return a dataframe
-  
+
   if(length(Nstates) >= 1 && length(Nstates) < length(columnsIndex)){
     stop("Nstates length should be equal to 1 or equal to the number of columnsIndex")
   }
@@ -305,7 +315,17 @@ ChangeContinuousTraitInDiscrete <- function(Matrix, columnsIndex, Nstates, subcl
   return(dataframe)
 }
 
-
+#' @title Probability matrix
+#'
+#' @description This function generates a random array of size nbrState * nbrState for which the sum of each row is equal to 1. 
+#'  
+#' @usage corMatrixDisc(nbrState, highCor)
+#'
+#' @param nbrTraits integer
+#' @param highCor numerical, strength of the correlation. if nbrState = 3 and highCor = 0.8, the other 2 traits will have
+#'  a correlation of (1-0.8)/(nbrTraits - 1)
+#' @return an array of size nbrState * nbrState for which the sum of each row is equal to 1.
+#'
 corMatrixDisc <- function(nbrState, highCor){
   lowCor <- (1 - highCor) / (nbrState - 1)
   ProbMat <- matrix(rep(lowCor, nbrState * nbrState), nbrState, nbrState)
@@ -317,7 +337,17 @@ corMatrixDisc <- function(nbrState, highCor){
   return(ProbMat)
 }
 
-
+#' @title Correlated continuous variable
+#'
+#' @description This function generates a continuous trait which is correlated to a discrete trait according to a 
+#' correlation factor. The function applies the function rnorm_pre from the R package faux. 
+#'  
+#' @usage corMatrixConti(discreteTrait, highCor)
+#'
+#' @param discreteTrait vector of integers
+#' @param highCor numerical, strength of the correlation.
+#' @return an vector of continuous variables normally distributed and correlated to the discrete trait. 
+#'
 corMatrixConti <- function(discreteTrait, highCor){
   
   discreteTrait <- as.numeric(discreteTrait)
@@ -341,7 +371,7 @@ corMatrixConti <- function(discreteTrait, highCor){
 
 #' @title Discrete traits correlated to a single trait discrete trait
 #'
-#' @description This function generate a dataframe of discrete traits
+#' @description This function generates a data frame of discrete traits
 #'  which are all correlated with a single traits but uncorrelated with each other.  
 #'  
 #' @usage corDiscTraitsOneTrait(nbrTraits, discreteTrait, highCor)
@@ -350,7 +380,7 @@ corMatrixConti <- function(discreteTrait, highCor){
 #' @param discreteTraits vector from which the simulated traits are correlated
 #' @param highCor numerical, strength of the correlation. if nbrState = 3 and highCor = 0.8, the other 2 traits will have
 #'  a correlation of (1-0.8)/(nbrTraits - 1)
-#' @return a dataframe of discrete traits where each column is a trait. Discrete traits are factors.
+#' @return a data frame of discrete traits where each column is a trait. Discrete traits are factors.
 #' 
 corDiscTraitsOneTrait <- function(nbrTraits, discreteTrait, highCor){
   
@@ -380,7 +410,7 @@ corDiscTraitsOneTrait <- function(nbrTraits, discreteTrait, highCor){
 
 #' @title Continuous traits correlated to a single trait discrete trait
 #'
-#' @description This function generate a dataframe of continuous traits
+#' @description This function generates a data frame of continuous traits
 #'  which are all correlated with a single traits but uncorrelated with each other.  
 #'  
 #' @usage corContiTraitsOneTrait(nbrTraits, discreteTrait, highCor)
@@ -388,7 +418,8 @@ corDiscTraitsOneTrait <- function(nbrTraits, discreteTrait, highCor){
 #' @param nbrTraits vector, defining the number of traits (columns)
 #' @param discreteTraits vector from which the simulated traits are correlated
 #' @param highCor numerical, strength of the correlation.
-#' @return a dataframe of continuous traits where each column is a trait. Continuous traits are numeric.
+#' @return a data frame of continuous traits where each column is a trait. Continuous traits are numeric.
+#' 
 corContiTraitsOneTrait <- function(nbrTraits, discreteTrait, highCor){
   
   #convert discreteTrait
@@ -409,11 +440,30 @@ corContiTraitsOneTrait <- function(nbrTraits, discreteTrait, highCor){
 
 
 
-#dataframe <- data
-#dataframe
-#param_tree <- tree_arg
-#param_tree
-#as first argument, param_tree(Birth, Death, Ntaxa), second arguments is a dataframe, third argument save in rds format
+#' @title Simulation of trait data
+#'
+#' @description This function simulates a trait data frame according several parameters.  
+#'  
+#' @usage simData(param_tree, dataframe, save = NULL)
+#'
+#' @param param_tree list of integers needed for the simulation of the phylo object
+#' @param dataframe data frame composed of 10 columns:
+#'                                        - nbr_traits: number of traits we want to simulated with specific parameters	
+#'                                        - class: type of traits, (continuous, nomina, ordinal, interval)
+#'                                        - model: evolutionary model (BM1, OU1, ARD, SYM, ER, Manual)
+#'                                        - states: number of states for discrete traits, (if continuous set it to 1)
+#'                                        -	correlation: index, corresponding to the group of simulated traits which are   
+#'                                          correlated or not other traits.
+#'                                        - uncorr_traits: among the nbr_traits, the number of uncorrelated traits
+#'                                        - fraction_uncorr_traits: fraction among the nbr_traits which are uncorrelated
+#'                                        - lambda: integer, Pagel's lambda
+#'                                        - kappa: integer, Pagel's kappa 
+#'                                        - highCor: correlation between the firts trait of the dataset and the simulated traits.
+#'                                        
+#' @param save path to save the data
+#' @return list composed of a dataset with mixed data, a continuous data, a discrete data, the list of phylogenetic trees, 
+#' several list of the parameters used for the simulation and the dataframe used as input.
+#' 
 simData <- function(param_tree, dataframe, save = NULL){
   
   if(ncol(dataframe) != 10){
@@ -837,14 +887,3 @@ simData <- function(param_tree, dataframe, save = NULL){
   return(Data)
     
 } #close function
-
-# data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DiscreteBM1DataKAP0.csv", header = TRUE, sep = ";")
-# # # # 
-# # # # # # data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/ContinuousData10LA001.csv", header = TRUE, sep = ";")
-# # # # # # #data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DataTest2.csv", header = TRUE, sep = ";")
-# tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 100)
-# # # # # # # #tree_arg
-# new_data <- simData(tree_arg, data, save = NULL)
-# # # 
-# new_data$FinalData
-

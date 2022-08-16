@@ -1,6 +1,4 @@
 #install.packages("VIM")
-# #install.packages("fastDummies")
-# library(fastDummies)
 # library(VIM)
 # library(laeken) #for weigthedMean
 # library(mice)
@@ -18,92 +16,7 @@
 
 #load Gain python class
 source_python("./Imputation/GAIN/modelV2R.py")
-
-#Categorical in dummy
-#####################
-#' @title Conversion factors in dummy
-#' 
-#' @description This function returns a data.frame of dummy corresponding to a data.frame of factors      
-#' representing a categorical variable.
-#'
-#' @usage generateDummyVariables(NaNData)
-#'
-#' @param NaNData data.frame of one ore several factors columns 
-#' @return a data.frame in which each variable are represented as dummies.
-generateDummyVariables <- function(NaNData){
-  
-  Nstates <- as.numeric(tail(levels(NaNData[,1]), n = 1)) + 1
-  
-  #in case NaNData is a vector
-  if(is.null(dim(NaNData))){
-    stop("The column(s) shoud be of class data.frame")
-  }
-  
-  #check if all the columns are factors
-  if(sum(sapply(NaNData, is.factor)) != ncol(NaNData)){
-    stop("The columns should be of class factor")
-  }
-  
-  dummy <- fastDummies::dummy_cols(NaNData)
-  row.names(dummy) <- row.names(NaNData)
-  columns_to_remove <- c(1:ncol(NaNData), grep("NA", colnames(dummy)))
-  dummy <- dummy[, -columns_to_remove]
-  
-  if(is.integer(dummy) & Nstates != 1){
-    stateInData <- as.numeric(levels(NaNData[,1]))+1
-    intermediateDummy <- dummy
-    intermediateDummy[which(intermediateDummy == 1)] <- 0
-    intermediateMatrix <- matrix(rep(intermediateDummy, Nstates), ncol = Nstates)
-    intermediateMatrix[, stateInData] <- dummy
-    dummy <- intermediateMatrix
-    row.names(dummy) <- row.names(NaNData)
-  }
-
-  return(dummy)
-  
-}
-
-# Generating eigenvectors
-#########################
-#' @title Eigenvectors calculations
-#' 
-#' @description This function calculates the eigenvectors of a phylo object 
-#'
-#' @usage get_eigenvec(tree, variance_fraction = 0.8, numEigen = NULL)
-#'
-#' @param tree phylogenetic tree of class "phylo"
-#' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors which correspond to the 
-#' phylogenetic inertia
-#' @return a data.frame in which each colum represent an eigenvector
-get_eigenvec <- function(tree, variance_fraction){
-  
-  decomp <- PVRdecomp(tree, type = "newick") #produces object of class 'PVR'
-  eigvec <- as.data.frame(decomp@Eigen$vectors) ##extract eigenvectors
-  
-  egval <- decomp@Eigen$values #extract eigenvalues
-  eigPerc <- egval/(sum(egval)) #calculate % of variance
-  eigPercCum <- t(cumsum(eigPerc)) #cumulated variance
-  
-  #eigenvectors representing more than X% variance
-  numEigen <- sum(eigPercCum < variance_fraction)
-  
-  eigOK <- eigvec[,1:numEigen, drop = T] 
-  
-  if(numEigen == 0){
-    print(paste("The variance_fraction should at leat be equal to ", 
-                eigPercCum[1]))
-    eigOK <- eigvec[1]
-  }
-  # Change 'numEigen' on above line to a number if you want to specify number of eigenvectors
-  #Eigenvectors generated in object 'eigenTobind'
-  #rename eigenTobind species column so it matches trait dataset species column
-  eigOK <- as.data.frame(eigOK)
-  names(eigOK)[1] <- "c1"
-  row.names(eigOK) <- decomp@phylo$tip.label
-
-  return(eigOK)
-}
-
+source("utils.R")
 
 #' @title Imputation of missing data for one discrete trait
 #' 
@@ -111,15 +24,18 @@ get_eigenvec <- function(tree, variance_fraction){
 #' run the function make.simmap fits a continuous-time reversible Markov model for the evolution of one trait and then 
 #' simulates stochastic character histories using that model and the tip states on the tree. Second step, run make.simmap 
 #' for three models(ER, SYM and ARD) and select the one having the smallest AIC. Third step is to run the function 
-#' describe.simmap which summerize the reuslts obtained with make.simmap
+#' describe.simmap which summarize the results obtained with make.simmap
 #'
 #' @usage imputeOneDiscreteTrait(trait, Data)
 #'
-#' @param missingData data.frame of 1 factor column containing NAs
+#' @param missingData data frame of 1 factor column containing NAs
 #' @param Data simulated Data object
-#' @return a data.frame of 1 factor column with the NAs replaced by values. 
+#' @return a data frame of 1 factor column with the NAs replaced by values. 
+#' 
 imputeOneDiscreteTrait <- function(missingData, Data){
 
+  levelsTrait <- levels(missingData[,1])
+  
   #check if tips in matrix traits are ordered as in the tree
   if(!setequal(Data$TreeList$`0`$tip.label, row.names(missingData))){
     
@@ -128,8 +44,6 @@ imputeOneDiscreteTrait <- function(missingData, Data){
   }
 
   colName <- names(missingData)
-  #print(missingData)
-  
   #if only one state represented in the trait
   if(sum(!is.na(unique(missingData[, 1]))) == 1){
     #print("one state")
@@ -152,7 +66,7 @@ imputeOneDiscreteTrait <- function(missingData, Data){
   
   tree <- Data$TreeList$`0`
 
-  #add the tip names in the dataframe
+  #add the tip names in the data frame
   missingData <- cbind(species = row.names(missingData), missingData)
   
   #convert missingData as character
@@ -184,7 +98,15 @@ imputeOneDiscreteTrait <- function(missingData, Data){
 
   #Imputation
   MostLikelyState <- apply(FitCorHMM$tip.states, 1, which.max)
-  MostLikelyState <- as.data.frame(MostLikelyState)
+  
+  if(levelsTrait[1] == "0"){
+    MostLikelyState <- as.data.frame(as.factor(MostLikelyState - 1)) #-1 because when converted a numeric the value are +1
+  }
+
+  if(levelsTrait[1] != "0"){
+    MostLikelyState <- as.data.frame(as.factor(MostLikelyState)) #-1 because when converted a numeric the value are +1
+  }
+  
   colnames(MostLikelyState) <- colName
   
   #Parameters
@@ -195,20 +117,21 @@ imputeOneDiscreteTrait <- function(missingData, Data){
 }
 
 
-#' @title Imputation of missing data for discrete traits, mandatory phylogenetic information  
+#' @title Imputation of missing values in discrete traits. 
 #' 
-#' @description This function apply the function imputeOneDiscretTrait on several columns at one time.
+#' @description This function applies the function imputeOneDiscretTrait on several columns at one time.
 #'
 #' @usage imputeDiscreteTrait(trait)
 #'
-#' @param missingData data.frame of 1 or more factor columns containing NAs
+#' @param missingData data frame of 1 or more factor columns containing NAs
 #' @param Data simulated Data object
-#' @return a data.frame of 1 or more factor columns with the NAs replaced by values, parameters used for the imputation, matrix of probabilities of each states
+#' @return a data frame of 1 or more factor columns with the NAs replaced by values, parameters used for the imputation, matrix 
+#' of probabilities of each states
+#' 
 imputeDiscreteTraits <- function(missingData, Data){
 
   #select the columns with missing values
   NaNColIndex <- which(apply(missingData, 2, function(x) any(is.na(x))))
-  #NaNTraits <- missingData[, NaNColIndex, drop = FALSE]
   
   proba <- matrix(NA, nrow = nrow(missingData), ncol = ncol(missingData))
   parameters <- list()
@@ -225,7 +148,6 @@ imputeDiscreteTraits <- function(missingData, Data){
       proba <- cbind(proba, imputation$probabilities)
     }
     parameters <- c(parameters, imputation$parameters)
-    #print(missingData[,i])
   }
   proba <- as.data.frame(proba, row.names = rownames(missingData))
   
@@ -233,18 +155,16 @@ imputeDiscreteTraits <- function(missingData, Data){
 }
 
 
-#impute continuous traits (Rphylopars)
-######################################
-#' @title Imputation of missing data for continuous traits, mandatory phylogenetic information 
+#' @title Imputation of missing data in continuous traits
 #' 
 #' @description This function imputes missing data for continuous traits applying the phylopars approach. 
 #'
-#' @usage imputeContinous(missingData, tree)
+#' @usage imputeContinousTraits(missingData, Data)
 #'
 #' @param missingData data.frame of 1 or more numeric columns containing NAs
 #' @param Data simulated Data object
-#' @return a data.frame of 1 or more numeric columns with the NAs replaced by values + parameters used for the imputation
-
+#' @return a data frame of 1 or more numeric columns with the NAs replaced by values + parameters used for the imputation
+#' 
 imputeContinousTraits <- function(missingData, Data){
   
   Rphylopars <- tryCatch(
@@ -257,15 +177,7 @@ imputeContinousTraits <- function(missingData, Data){
   
      #add species (tips) in the dataframe
      missingData <- tibble::add_column(missingData, species = row.names(missingData) , .before = 1)
-     #convert the species names in double
-     #treeDouble$tip.label <- 1:length(tree$tip.label)
-  
-     #missingData$species <- sapply(X = missingData$species, FUN = function(x){which(tree$tip.label==x)})
- 
-     #Just to make sure all the columns are being processed as double 
-     #missingData[,1:ncol(missingData)] <- 
-     #  apply(X = missingData[,1:ncol(missingData)],MARGIN = 2,FUN = as.double)
-  
+
      #impute
      models <- c("BM", "OU")
      AICs <- c()
@@ -312,26 +224,23 @@ imputeContinousTraits <- function(missingData, Data){
 
 # MICE
 ######
-#' @title Imputation of missing data for continuous and discrete traits by MICE approach
+#' @title Imputation of missing values in mixed data by the MICE approach
 #' 
 #' @description This function imputes missing data for continuous and discrete traits applying the MICE approach using the 
-#' predictive mean matching method. 
+#' predictive mean matching method for continuous traits, the polytomous regression for unordered categorical traits having 
+#' >2 states, if binary the algo uses a logistic regression and in case of ordered traits with >2 states, the method uses 
+#' proportional odds model.
 #'
-#' @usage imputeMICE(missingData, nbrMI, method, tree)
+#' @usage imputeMICE(missingData, nbrMI, variance_fraction = 0, Data, hint = NULL)
 #'
-#' @param missingData data.frame of 1 or more columns containing NAs
+#' @param missingData data frame of 1 or more columns containing NAs
 #' @param nbrMI integer, mentioning the total number of imputations
-#' @param method character, name of the imputation method used, by default is pmm (predictive mean matching)
-#' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors which correspond to the 
-#' phylogenetic inertia
+#' @param variance_fraction variance_fraction minimum variance (%) explained by the eigenvectors
 #' @param Data simulated Data object
-#' @param hint dataframe already imputed by a comprative methods (Rphylopars for continuous and corHMM for discrete)
-#' @return a data.frame of 1 or more numeric columns with the NAs replaced by values + parameters used for the imputation
-
-#missingData <- miss
-#nbrMI <- 5
-
-imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0, Data, hint = NULL){
+#' @param hint data frame already imputed by a comparative methods (Rphylopars for continuous and corHMM for discrete)
+#' @return a data frame of 1 or more numeric columns with the NAs replaced by values + parameters used for the imputation
+#' 
+imputeMICE <- function(missingData, nbrMI, variance_fraction = 0, Data, hint = NULL){
   
   colNames <- names(missingData)
   nativeMissingData <- missingData
@@ -357,16 +266,27 @@ imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0
   #in case collinearity is too important, and MICE can't impute the data
   ImputedMICE <- tryCatch(
     {
-      ImputedMICE <- mice(missingData, m = nbrMI, method = method, maxit = 5, printFlag = FALSE)
+      
+      #check the number of levels for factors
+      levelsByColumns <- lapply(missingData, levels)
+      lengthLevels <- lapply(levelsByColumns, length)
+      columnsCatPMM <- as.numeric(lengthLevels > 20) #in literature said that in case nbr state > 20 use pmm instead of polyreg
+      columnsLogReg <- as.numeric(lengthLevels == 2)
+      
+      method <- NULL
+      
+      if(sum(columnsCatPMM) != 0){
+        method <- rep("polyreg", length(columnsCatPMM))
+        method[which(columnsCatPMM == 1 | as.numeric(lengthLevels == 0) == 1)] <- "pmm"
+        method[which(columnsLogReg == 1)] <- "logreg"
+      }
+      
+      ImputedMICE <- mice(missingData, m = nbrMI, maxit = 5, method = method, printFlag = FALSE)
       
       #choose the first column 
-      imputedData <- mice::complete(ImputedMICE, action = 1)[, 1:length(colNames)]
+      imputedData <- mice::complete(ImputedMICE, action = 1L)[, 1:length(colNames),  drop = FALSE]
       names(imputedData) <- colNames
-      
-      #in case a column is not imputed but should be imputed, (don't really know why because are
-      #not collinear (maybe because default threshold defining collinearity to large to be detected by 
-      #mice:::find.collinear()))
-      #use mice.impute.sample which, impute missing values in the trait by random sampling (didn't find a better way)
+
       colWithNaN <-  which(colSums(is.na(imputedData)) != 0)
       if(length(colWithNaN) != 0){
         for(v in names(colWithNaN)){
@@ -375,7 +295,7 @@ imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0
         }
       }
       
-      parameters <- list(nbrMI = nbrMI, method = method)
+      parameters <- list(nbrMI = nbrMI)
       list(imputedData = imputedData, parameters = parameters)
     },
     error = function(cond){
@@ -385,26 +305,22 @@ imputeMICE <- function(missingData, nbrMI, method = "pmm", variance_fraction = 0
   return(ImputedMICE)
 }
 
-# missForest
-############
-#' @title non-parametric missing value imputation for mixed-type data by missForest(randomForest)
+#' @title Non-parametric missing values imputation for mixed-type data by missForest(randomForest)
 #' 
 #' @description This function imputes missing data for continuous and discrete traits applying the missForest approach  
 #'
-#' @usage imputeMissForest(missingData, variance_fraction = 0.8, maxiter = 10, ntree = 100, 
-#' mtry = sqrt(ncol(missingData)), tree = NULL)
+#' @usage imputeMissForest(missingData, variance_fraction = 0, maxiter = 10, ntree = 100,
+#' mtry = sqrt(ncol(missingData)), Data, hint = NULL)
 #'
-#' @param missingData data.frame of 1 or more columns containing NAs
-#' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors
+#' @param missingData data frame of 1 or more columns containing NAs
+#' @param variance_fraction variance_fraction minimum variance (%) explained by the eigenvectors
 #' @param maxiter maximum number of iterations to be performed given the stopping criterion is not met beforehand.
 #' @param ntree number of trees to grow in each forest.
 #' @param mtry number of variables randomly sampled at each split. By default it's the square root of the number of 
 #' variables
-#' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors which correspond to the 
-#' phylogenetic inertia
 #' @param hint dataframe already imputed by a comprative methods (Rphylopars for continuous and corHMM for discrete)
-#' @return a data.frame of 1 or more numeric columns with the NAs replaced by values. + parameters used for the imputation
-
+#' @return a data frame of 1 or more numeric columns with the NAs replaced by values + parameters used for the imputation
+#' 
 imputeMissForest <- function(missingData, variance_fraction = 0, maxiter = 10, ntree = 100, 
                              mtry = sqrt(ncol(missingData)), Data, hint = NULL){
   
@@ -439,24 +355,22 @@ imputeMissForest <- function(missingData, variance_fraction = 0, maxiter = 10, n
   return(list(imputedData = missForest_imputation$ximp, parameters = parameters))
 }
 
-# KNN
-#####
+
 #' @title non-parametric missing value imputation for mixed-type data by kNN(k-nearest neighbor algorithm)
 #' 
 #' @description This function imputes missing data for continuous and discrete traits applying the kNN approach  
 #'
-#' @usage imputeKNN(missingData, k, numFun, catFun, variance_fraction = 0.8, tree = NULL)
+#' @usage imputeKNN(missingData, k, numFun, catFun, variance_fraction = 0, Data, hint = NULL)
 #'
-#' @param missingData data.frame of 1 or more columns containing NAs
+#' @param missingData data frame of 1 or more columns containing NAs
 #' @param k integer, number of nearest neighbours used
 #' @param numFun numFun: function for aggregating the kNN in the case of a numerical variable
 #' @param catFun catFun: function for aggregating the kNN in the case of a categorical variable
-#' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors which correspond to the 
-#' phylogenetic inertia
+#' @param variance_fraction variance_fraction minimum variance (%) explained by the eigenvectors
 #' @param Data simulated Data object
-#' @param hint dataframe already imputed by a comprative methods (Rphylopars for continuous and corHMM for discrete)
-#' @return a data.frame of 1 or more numeric columns with the NAs replaced by values + parameters used for the imputation
-
+#' @param hint data frame already imputed by a comprative methods (Rphylopars for continuous and corHMM for discrete)
+#' @return a data frame of 1 or more numeric columns with the NAs replaced by values + parameters used for the imputation
+#' 
 imputeKNN <- function(missingData, k, numFun, catFun, variance_fraction = 0, Data, hint = NULL){
   
   NbrCol <- ncol(missingData)
@@ -487,7 +401,7 @@ imputeKNN <- function(missingData, k, numFun, catFun, variance_fraction = 0, Dat
   }
   
   DataImputed <- VIM::kNN(missingData, k = k, variable = variable,
-                          numFun = numFun, catFun = catFun, imp_var = FALSE)[,1:NbrCol]
+                          numFun = numFun, catFun = catFun, imp_var = FALSE)[,1:NbrCol,  drop = FALSE]
   #keep the tip names
   rownames(DataImputed) <- rownames(missingData)
 
@@ -496,13 +410,14 @@ imputeKNN <- function(missingData, k, numFun, catFun, variance_fraction = 0, Dat
   return(list(imputedData = DataImputed, parameters = parameters))
 }
 
-#GAIN
-#####
+
 #' @title GAIN
 #' 
-#' @description This function imputes missing data for continuous and discrete traits applying the Generative Adversarial #' Imputation Networks (GAIN) 
+#' @description This function imputes missing data for continuous and discrete traits applying the Generative Adversarial #' 
+#' Imputation Networks (GAIN) 
 #'
-#' @usage gainR(missingData, variance_fraction, Data, batch_size, hint_rate = 0.9, alpha = 100, epochs = 10000)
+#' @usage gainR(missingData, variance_fraction, Data, batch_size = round(ncol(missingData)*0.2), 
+#' hint_rate = 0.9, alpha = 100, epochs = 10000, hint = NULL)
 #'
 #' @param missingData data.frame of 1 or more columns containing NAs
 #' @param variance_fraction total amount of minimum variance to be represented by the eigenvectors which correspond to the 
@@ -513,14 +428,10 @@ imputeKNN <- function(missingData, k, numFun, catFun, variance_fraction = 0, Dat
 #' @param alpha numerical, hyperparameter
 #' @param epochs integer, iterations
 #' @param hint dataframe already imputed by a comprative methods (Rphylopars for continuous and corHMM for discrete)
-#' @return a list of list containing in the "tab" imputedData the imputed Data and in the "tab" parametersGain, the discriminant loss values, the generative loss values, the MSE loss values and the iterations correspond to these values (important to generate a plot).
-
-# use_condaenv(condaenv = "tfKeras")
-# missingData <- NaNData$DataNaN$MCAR$`MCAR/AllTraits/10/0.333333333333333`
-# 
-# missingData
-# batch_size <- 2
-
+#' @return a list of list containing in the "tab" imputedData the imputed Data and in the "tab" parametersGain, the discriminant 
+#' loss values, the generative loss values, the MSE loss values and the iterations correspond to these values (important to 
+#' generate a plot).
+#' 
 gainR <- function(missingData, variance_fraction, Data, batch_size = round(ncol(missingData)*0.2), 
                   hint_rate = 0.9, alpha = 100, epochs = 10000, hint = NULL){
   
@@ -532,47 +443,58 @@ gainR <- function(missingData, variance_fraction, Data, batch_size = round(ncol(
   rNames <- row.names(missingData)
   colNames <- colnames(missingData)
   
-  #include imputed data in case 
-  if(!is.null(hint) & variance_fraction == 2){
+  #include imputed data in case
+  if(!is.null(hint)){
     #change names columns hint
     colnames(hint) <- paste0("H",as.character(1:ncol(hint)))
     
     missingData <- cbind(missingData, hint)
   }
-  
+
   # want to include phylogeny information
   if(variance_fraction != 0 & variance_fraction != 2){
     
     tree <- Data$TreeList$`0`
-    
     eigen <- get_eigenvec(tree, variance_fraction)
-    missingData <- cbind(missingData[, 1:ncol(missingData), drop = FALSE], 
+    missingData <- cbind(missingData[, 1:ncol(missingData), drop = FALSE],
                          eigen[row.names(missingData), 1:ncol(eigen), drop = FALSE])
   }
+
+  #convert factors as dummy
+  if(length(factorsColumns) != 0){
+    oneHotConvertion <- generateOneHotEncoVariables(missingData)
+    missingData <- oneHotConvertion$data
+    oneHotColnames <- colnames(missingData)
+  }
   
-  #convert all the values as numeric
+  #convert all the values as numeric (second check)
   missingData <- apply(missingData, 2, as.numeric)
-  
+
+
   #run Gain
   obj <- Gain()
-  gainOuput <- obj$runGain(missingData, batch_size, hint_rate, alpha, epochs)
+  gainOutput <- obj$runGain(missingData, batch_size, hint_rate, alpha, epochs)
   
   #merge list of list
-  for (l in 2:length(gainOuput)){
-    gainOuput[[l]] <- unlist(gainOuput[[l]], recursive = FALSE)
+  for (l in 2:length(gainOutput)){
+    gainOutput[[l]] <- unlist(gainOutput[[l]], recursive = FALSE)
   }
   
   #convert imputedData in dataframe
-  imputedData <- as.data.frame(gainOuput[[1]])
-  imputedData <- imputedData[, 1:NbrCol]
+  imputedData <- as.data.frame(gainOutput[[1]])
+  
+  if(length(factorsColumns) != 0){
+    names(imputedData) <- oneHotColnames
+    imputedData <- convertOneHotEncoIntoFactors(imputedData, colNames)
+  }
+  
+  #remove hint variables or phylogenetic eigenvectors (in case no one hot encoding)
+  imputedData <- imputedData[, 1:NbrCol, drop = FALSE]
   names(imputedData) <- colNames
   row.names(imputedData) <- rNames
-  
-  #convert the column that should be factors
-  imputedData[ ,factorsColumns] <- lapply(imputedData[ ,factorsColumns], factor)
-  
+
   #parameters
-  lossValues <- gainOuput[c(2:5)]
+  lossValues <- gainOutput[c(2:5)]
   names(lossValues) <- c("d_loss", "g_loss", "mse_loss", "epochs")
   
   return(list(imputedData = imputedData, parameters = lossValues))

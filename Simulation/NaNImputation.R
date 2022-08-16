@@ -1,9 +1,7 @@
-# Simulation of Missing values (NaN) functions
-##############################################
-
-#' @title Partition discrete and continuous
+#' @title Partition discrete and continuous variables
 #'
-#' @description This function split the columns according to its names in a discrete or continuous nested list 
+#' @description This function splits the columns according to their names in a two nested list which group the discrete variables
+#' and the continuous variables. 
 #'
 #' @usage splitDiscAndContiColnames(colunmNames)
 #'
@@ -25,11 +23,10 @@ splitDiscAndContiColnames <- function(columnNames){
   return(list(Discrete = DiscreteColnames, Continuous = ContiColnames))
 }
 
-#Subset generation
-##################
-#' @title Partition the columns according to a following partition design
+
+#' @title Partition the columns according to a precise partition design
 #'
-#' @description This function split the columns according to its names as following: 
+#' @description This function splits the columns according to their names as following: 
 #' # Partition the data:
 #   - All traits
 #   - Independent traits:
@@ -43,8 +40,8 @@ splitDiscAndContiColnames <- function(columnNames){
 #'
 #' @usage dataPartition(Data)
 #' @param Data a nested list with at least the structure of the dataset and the dataset itself
-#' @return  a nested list having the column name of the partitionned data as in the description
-
+#' @return a nested list having the column names of the partitioned data as in the description
+#' 
 dataPartition <- function(Data){
 
   correlation_values <- unique(Data$dataframe$correlation)
@@ -113,7 +110,7 @@ dataPartition <- function(Data){
 #' @param Tree Phylogeny 
 #' @param missingRates numerical vector corresponding to the rate of missing value to introduce in the data
 #' @return vector containing the names of the species that should get NAs for their traits
-
+#' 
 getTipsNA <- function (Tree, missingRates){
   Nodes <- Nnode(Tree)
   Tips <- Ntip(Tree)
@@ -135,26 +132,19 @@ getTipsNA <- function (Tree, missingRates){
   return(SampledTips)
 }
 
-#MCAR simulation
-################
 
 #'@title Impute NaNs in a simulated data according the MCAR mechanisms
 #'
-#'@description Simulate NaNs in a partitioned complete data set composed of discrete and continuous traits which are correlated or uncorrelated. The NaNs are imputed according a missing rate and the missing mechanism MCAR.
+#'@description Simulate NaNs in a partitioned complete data set composed of discrete and continuous traits which are correlated 
+#'or uncorrelated. The NaNs are imputed according a missing rate and the missing mechanism MCAR. It used the function delete_MCAR from the package missMethods.
 #'
 #'@usage myMCAR(missingRate, partition, cols_mis)
 #'
 #'@param missingRate numerical vector corresponding to the rate of missing value to introduce in the data
-#'@param ds dataframe in which NA should be created
-#'@param cols_mis vector of index or columns name where missing value will be created
-#'@return a dataset with NA following a pattern of MNAR.
-
-# missingRate <- 0.5
-# ds <- Data$FinalData
-# cols_mis <- names(Data$FinalData)[1]
-# cols_ctrl <- "F3.2/3"
-# t <- myMCAR(missingRate, ds, cols_mis)
-
+#'@param ds data frame in which NA should be created
+#'@param cols_mis vector of index or columns name where missing values will be created
+#'@return a dataset with NA following a pattern of MCAR.
+#'
 myMCAR <- function(missingRate, ds, cols_mis){
   
   if(is.numeric(cols_mis)){
@@ -208,12 +198,12 @@ myMCAR <- function(missingRate, ds, cols_mis){
   return(missingMCAR)
 }
 
-#MAR simulation
-################
 
 #'@title Impute NaNs in a simulated data according the MAR mechanisms
 #'
-#'@description Simulate NaNs in a partitioned complete data set composed of discrete and continuous traits which are correlated or uncorrelated. The NaNs are imputed according a missing rate and the missing mechanism MAR.
+#'@description Simulate NaNs in a partitioned complete data set composed of discrete and continuous traits which are correlated 
+#'or uncorrelated. The NaNs are imputed according a missing rate and the missing mechanism MAR. It used the function delete_MAR 
+#'from the package missMethods.
 #'
 #'@usage myMAR(missingRate, partition, cols_mis, cols_ctrl)
 #'
@@ -221,14 +211,8 @@ myMCAR <- function(missingRate, ds, cols_mis){
 #'@param ds dataframe in which NA should be created
 #'@param cols_mis vector of index or columns name where missing value will be created
 #'@param cols_ctrl vector of index or columns name which control the creation of missing values (same size of cols_mis)
-#'@return a dataset with NA following a pattern of MNAR.
-
-# missingRate <- 0.5
-# ds <- Data$FinalData
-# cols_mis <- names(Data$FinalData)[1]
-# cols_ctrl <- "F3.2/3"
-# myMAR(missingRate, ds, cols_mis, cols_ctrl)[, 1]
-
+#'@return a dataset with NA following a pattern of MAR.
+#'
 myMAR <- function(missingRate, ds, cols_mis, cols_ctrl){
   
   if(is.numeric(cols_mis)){
@@ -293,12 +277,12 @@ myMAR <- function(missingRate, ds, cols_mis, cols_ctrl){
   return(missingMAR)
 }
 
-#MNAR simulation
-################
 
 #'@title Impute NaNs in a simulated data according the MNAR mechanisms
 #'
-#'@description Simulate NaNs in a partitioned complete data set composed of discrete and continuous traits which are correlated or uncorrelated. The NaNs are imputed according a missing rate and the missing mechanism MNAR.
+#'@description Simulate NaNs in a partitioned complete data set composed of discrete and continuous traits which are correlated 
+#'or uncorrelated. The NaNs are imputed according a missing rate and the missing mechanism MNAR. It used the function 
+#'delete_MNAR from the package missMethods.
 #'
 #'@usage myMNAR(missingRate, partition, cols_mis)
 #'
@@ -307,7 +291,6 @@ myMAR <- function(missingRate, ds, cols_mis, cols_ctrl){
 #'@param cols_mis vector of index or columns name where missing value will be created
 #'@return a dataset with NA following a pattern of MNAR.
 #'
-
 myMNAR <- function(missingRate, ds, cols_mis){
   
   if(is.numeric(cols_mis)){
@@ -360,12 +343,9 @@ myMNAR <- function(missingRate, ds, cols_mis){
   return(ds)
 }
 
-#NaN imputation
-##############
-
 #'@title Impute NaNs in a simulated data according to MCAR, MAR and MNAR
 #'
-#'@description Simulate NaNs in a partitioned complete data set composed of continuous and discrete traits which are correlated or uncorrelated. The NaNs are imputed according a missing rate and respecting 3 categories of missing data, MCAR, MAR and MNAR.
+#'@description Simulate NaNs in a partitioned complete data set composed of continuous and discrete traits which are correlated or uncorrelated. The NaNs are imputed according a missing rate and respecting 4 categories of missing data, MCAR, MAR, MNAR and PhyloNaN.
 #'
 #'@usage NaNImputation(missingRate, partitions, trees, missTraits, replicates, save = TRUE)
 #'
@@ -375,19 +355,7 @@ myMNAR <- function(missingRate, ds, cols_mis){
 #'@param missingTraits numerical, number of traits in which there is missing data.
 #'@param save character correspond to the name of the saved file in .RData format
 #'@return a nested list composed of the partitioned data with the 3 categories of missing data (MCRA, MAR and MNAR) according to a precise missing rate and of list of specific traits with NaNs imputed according to MCAR (phylogeny).
-
-#missingRates <- 0.05
-#partitions <- dataPartition(Data)
-# partitions
-# 
-#partitions <- dataPartition(new_data)
-# partitions
-# # # data <- Data
-#missTraits <- ncol(Data$FinalData)
-# missTraits <- ncol(new_data$FinalData)
-# data$FinalData
-
-#test$DataNaN$MCAR$`MCAR/CorrContinuousTraits/3/0.05`
+#'
 NaNImputation <- function(missingRates, partitions, data, missingTraits, save = NULL){
   DataNaN <- list()
   MCAR <- list()
@@ -608,14 +576,3 @@ NaNImputation <- function(missingRates, partitions, data, missingTraits, save = 
   
   return(NaNImputed)
 }
-
-#partitions <- dataPartition(new_data)
-#test <- NaNImputation(missingRates, partitions, Data, missTraits)
-# test$DataNaN$MAR$`MAR/CorrContinuousTraits3_2/0.05`
-#Data <- get(load("F:\\Master_Thesis\\Simulations\\ARD\\005 _10T\\FullData\\simulatedDataDiscreteCorData10KAP0_R53_V0.05.RData"))
-
-# Data <- get(load("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/simulatedDataDiscreteARD1Data_R59_0.05.RData"))
-# partitions <- dataPartition(Data)
-# test <- NaNImputation(0.5, partitions, Data, ncol(Data$FinalData))
-# Data$FinalData[,1]
-
