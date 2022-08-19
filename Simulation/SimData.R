@@ -887,3 +887,11 @@ simData <- function(param_tree, dataframe, save = NULL){
   return(Data)
     
 } #close function
+
+
+data <- read.csv("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/csv/DiscreteARD1Data.csv", header = TRUE, sep = ";")
+tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 100)
+
+new_data <- simData(tree_arg, data, save = NULL)
+
+

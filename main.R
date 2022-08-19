@@ -37,7 +37,12 @@ require(tibble)
 require(Rphylopars)
 require(corHMM)
 require(reticulate)
-require(faux)
+require(mltools) #to add to package
+require(data.table) #to add to package
+#require(faux)
+#require(dplyr)
+#require(ggbeeswarm)
+
 
 setwd("/home/mgendre/Cluster/scripts/")
 #setwd("C:/Users/Matthieu/Documents/UNIFR/Master_thesis/Scripts/Phylo_ImputationLocal/")
@@ -80,7 +85,7 @@ for (i in 1:length(files)){
 #load functions
 source(file = "./Simulation/SimData.R")
 source(file = "./Simulation/NaNImputation.R")
-source(file = "./Imputation/imputeComparisonV2.R")
+source(file = "./Imputation/imputeComparisonV3.R")
 
 #remove .csv to file name
 nameFiles <- gsub("\\.csv", "", files)
@@ -90,7 +95,7 @@ LoadedPackages = sessionInfo()
 saveRDS(LoadedPackages,paste0("../Simulation/",directoryName,"/Results/SessionInfo.rds"))
 
 #tree parameters
-tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 100)
+tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 1000)
 
 #Run scripts
 #############
@@ -150,10 +155,10 @@ for(data in 1:(length(datasetList))){
   ImputationApproachesNames <- c("imputeDiscrete", "imputeContinuous", "imputeMICE", "imputeMissForest", 
                                  "imputeKNN", "gainR")   
 
-  variance_fractions <- c(0, 0.95, 2)
+  variance_fractions <- c(0, 0.95)
 
   generateResults(ImputationApproachesNames, NaNData, simulatedData, 
-            		variance_fractions, save = nameImputation, addHint = TRUE)
+            		variance_fractions, save = nameImputation, addHint = TRUE, trait = "I1.0/1", split = NULL)
   
 }
 

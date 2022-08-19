@@ -343,18 +343,21 @@ myMNAR <- function(missingRate, ds, cols_mis){
   return(ds)
 }
 
-#'@title Impute NaNs in a simulated data according to MCAR, MAR and MNAR
+#'@title Impute NaNs in a simulated data according to MCAR, MAR, MNAR and PhyloNa
 #'
-#'@description Simulate NaNs in a partitioned complete data set composed of continuous and discrete traits which are correlated or uncorrelated. The NaNs are imputed according a missing rate and respecting 4 categories of missing data, MCAR, MAR, MNAR and PhyloNaN.
+#'@description Simulate NaNs in a partitioned complete data set composed of continuous and discrete traits which are correlated 
+#'or uncorrelated. The Nas are imputed according a missing rate and respecting 4 categories of missing data, MCAR, MAR, MNAR and 
+#'PhyloNa.
 #'
-#'@usage NaNImputation(missingRate, partitions, trees, missTraits, replicates, save = TRUE)
+#'@usage NaNImputation(missingRates, partitions, data, missingTraits, save = NULL)
 #'
 #'@param missingRate numerical vector corresponding to the rate of missing value to introduce in the data
 #'@param partitions nested list having character vectors corresponding to the data partition
 #'@param data list, containing all the simulations (data, trees and parameters)
-#'@param missingTraits numerical, number of traits in which there is missing data.
+#'@param missingTraits numerical, total number of traits in which missing data will be generated.
 #'@param save character correspond to the name of the saved file in .RData format
-#'@return a nested list composed of the partitioned data with the 3 categories of missing data (MCRA, MAR and MNAR) according to a precise missing rate and of list of specific traits with NaNs imputed according to MCAR (phylogeny).
+#'@return a nested list composed of the partitioned data with the 4 categories of missing data (MCRA, MAR, MNAR and PhyloNa) 
+#'according to a precise missing rate and of list of the parameters used for the missing values generation.
 #'
 NaNImputation <- function(missingRates, partitions, data, missingTraits, save = NULL){
   DataNaN <- list()
@@ -576,3 +579,125 @@ NaNImputation <- function(missingRates, partitions, data, missingTraits, save = 
   
   return(NaNImputed)
 }
+
+
+#'@title Impute NaNs in a empirical data according to MCAR, MAR, MNAR and PhyloNa
+#'
+#'@description Simulate NaNs in a complete data set composed of continuous and discrete traits. The Nas are imputed according a 
+#'missing rate and respecting 4 categories of missing data, MCAR, MAR, MNAR and PhyloNa.
+#'
+#'@usage NaNImputationEmp(missingRates, dataset, missingTraits, MARtrait, save = NULL)
+#'
+#'@param missingRate float corresponding to the rate of missing value to introduce in the data
+#'@param dataset data.frame
+#'@param missingTraits numerical, total number of traits in which missing data will be generated
+#'@param MARTraits index or vector, variables in which the missing values will be generated. (only for MAR) same length 
+#'than MARctrlTraits
+#'@param MARctrlTraits index or vector, variables on which the missing values will be designed. (only for MAR) same length 
+#'than MARTraits
+#'@param tree phylo object, by default NULL (in case no phylogenetic tree)
+#'@param save character correspond to the name of the saved file in .RData format
+#'@return a nested list composed of the partitioned data with the 4 categories of missing data (MCRA, MAR, MNAR and PhyloNa) 
+#'according to a precise missing rate and of list of the parameters used for the missing values generation
+#'
+#' #'
+#' missingRate <- 0.05
+#' dataset <- n$FinalData
+#' missingTraits <- ncol(dataset)
+#' MARTraits <- names(dataset)[1]
+#' MARctrlTraits <- names(dataset)[6]
+#' tree <- n$TreeList$`0`
+#' # 
+#' nA <- NaNImputationEmp(missingRate, dataset, missingTraits, MARTraits, MARctrlTraits, tree=NULL, save = NULL)
+
+NaNImputationEmp <- function(missingRate, dataset, missingTraits, MARTraits, MARctrlTraits, tree = NULL, save = NULL){
+  
+  if(length(MARTraits) != length(MARctrlTraits)){
+    stop("MARTraits and MARctrlTraits must have the same size")
+  }
+  
+  colList <- colnames(dataset)
+  
+  if (missingTraits > length(colList)){
+    missTraits <- length(colList)
+  }
+  
+  if(missingTraits <= length(colList)){
+    missTraits <- missingTraits
+  }
+  
+  if(length(colList) == missTraits){
+    colMis <- colList
+  }
+  
+  if(length(colList) < missTraits){
+    colMis <- sample(colList, missTraits)
+  }
+  
+  #MCAR
+  missingMCAR <- myMCAR(missingRate, dataset, colMis)
+  MCAR <- list(missingMCAR)
+  nameMCAR <- paste("MCAR", length(colList), 
+                     round(missingRate, 2) ,sep = "/")
+  names(MCAR) <- nameMCAR
+  
+  #MNAR
+  missingMNAR <- myMNAR(missingRate, dataset, colMis)
+  MNAR <- list(missingMNAR)
+  nameMNAR <- paste("MNAR", length(colList), 
+                     round(missingRate, 2) ,sep = "/")
+  names(MNAR) <- nameMNAR
+  
+  
+  #MAR
+  cols_misIndex <- match(MARTraits, colList)
+  cols_ctrlIndex <- match(MARctrlTraits, colList)
+  missingMAR <- myMAR(missingRate, dataset, cols_misIndex, cols_ctrlIndex)
+  MAR <- list(missingMAR)
+  nameMAR <- paste("MAR", length(colList), 
+                     round(missingRate, 2) ,sep = "/")
+  names(MAR) <- nameMAR
+  
+  #PhyloNa
+  if(!is.null(tree)){
+    #copy of FinalData
+    missingPhylo <- dataset
+    
+    #in case missingRates larger than 50%
+    if(missingRate > 0.5){
+      stop("Can't simulate PhyloNaN")
+    }
+    
+    #tips to include NaN
+    tips <- getTipsNA(tree, missingRate)
+    
+    nameTrees <- paste("PhyloNaN", length(tips), round(missingRate,2), sep = "/")
+    
+    missingPhylo[tips, ] <- NA
+    
+    PhyloNaN <- list(missingPhylo)
+    names(PhyloNaN) <- nameTrees
+    
+    #Data with NA imputed
+    DataNaN <- list(MCAR = MCAR, MAR = MAR, MNAR = MNAR, PhyloNaN = PhyloNaN) 
+  }
+  
+  if(is.null(tree)){
+    #Data with NA imputed
+    DataNaN <- list(MCAR = MCAR, MAR = MAR, MNAR = MNAR) 
+  }
+
+  NaNImputed <- list(DataNaN = DataNaN)
+  
+  #Save data
+  ##########
+  if(!is.null(save)){
+    save(NaNImputed, file = paste0(save, ".RData"))
+  }
+  
+  return(NaNImputed)  
+}
+
+
+
+

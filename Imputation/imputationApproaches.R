@@ -504,5 +504,227 @@ gainR <- function(missingData, variance_fraction, Data, batch_size = round(ncol(
 #v$imputedData  
 
 
+#Hard voting
+############
+
+tree <- TRUE
+traitsNames <- colnames(get(load(paste0(pathSimulation, trueInFolder[1])))[[1]])
+traitsNames <- c("I1.0/1", "I2.0/1")
+#t <- HVfunction(pathSimulation, trueInFolder, replicatesInFolder, tree, traitsNames)
 
 
+#'@title Hard voting function
+#'
+#'@description This function sums the outputs of different imputation methods and keep the most voted element
+#'
+#'@usage  HVfunction(pathSimulation, trueInFolder, replicatesInFolder, tree, traitsNames)
+#'
+#'@param pathSimulation path where the simulated data is stored
+#'@param pathReplicates path where the imputation replicates are stored
+#'@param pathMissing path where the datasets with missing values are stored
+#'@param trueInFolder character vector of the simulated data names
+#'@param replicatesInFolder character vector of the outputs replicate names
+#'@param missingInFolder character vector of the dataset with NA names
+#'@param missingRate float
+#'@param tree boolean, TRUE if a tree have been provided for the imputation, FALSE otherwise
+#'@param traitsNames character or vector of character mentioning the name of the traits that we want to select
+#'
+HVfunction <- function(pathSimulation, pathReplicates, pathMissing, trueInFolder, replicatesInFolder, 
+                       missingInFolder, missingRate, tree, traitsNames){
+  
+  #loop through the traits
+  totalFinalOutput <- vector("list", length(traitsNames))
+  
+  for(t in 1:length(traitsNames)){
+    
+    
+    if(tree){
+      
+      strategy <- c("0", "0.95", "2", "all") #add a condition to say if tree or not
+      finaloutput <- list(MCAR = matrix(NA, ncol = length(replicatesInFolder), nrow = length(strategy)), 
+                          MAR = matrix(NA, ncol = length(replicatesInFolder), nrow = length(strategy)), 
+                          MNAR = matrix(NA, ncol = length(replicatesInFolder), nrow = length(strategy)),
+                          PhyloNaN = matrix(NA, ncol = length(replicatesInFolder), nrow = length(strategy)))
+      
+
+    }
+    else{
+      strategy <- "0" #add a condition to say if tree or not
+      finaloutput <- list(MCAR = matrix(NA, ncol = length(replicatesInFolder), nrow = length(strategy)), 
+                          MAR = matrix(NA, ncol = length(replicatesInFolder), nrow = length(strategy)), 
+                          MNAR = matrix(NA, ncol = length(replicatesInFolder), nrow = length(strategy)))
+      
+      
+    }
+    
+    
+    for(r in 1:length(replicatesInFolder)){
+      print(r)
+      
+      #loop on the 
+      
+      #load R object
+      replicate <- get(load(paste0(pathReplicates, replicatesInFolder[r])))[-1]
+      trueD <- get(load(paste0(pathSimulation, trueInFolder[r])))[[1]][, traitsNames[t], drop = FALSE]
+      missD <- get(load(paste0(pathMissing, missingInFolder[r])))$DataNaN
+      
+      for(mM in 1:length(replicate)){
+        
+        for(s in 1:length(strategy)){
+          
+          imputedList <- replicate[[mM]]$Imputed
+          missingTable <- missD[[mM]][[1]][, traitsNames[t], drop = FALSE]
+          #keep only the ML and corHMM methods
+          if(strategy[s] == "0"){
+            indexStrat <- grep("G|c|/2/|/0.95/", names(imputedList), invert = TRUE)
+          }
+          
+          if(strategy[s] == "2"){
+            indexStrat <- grep("G|c|/0/|/0.95/", names(imputedList), invert = TRUE)
+            
+          }
+          if(strategy[s] == "0.95"){
+            indexStrat <- grep("G|c|/2/|/0/", names(imputedList), invert = TRUE)
+          }
+          
+          if(strategy[s] == "all"){
+            indexStrat <- 1:length(imputedList)
+          }
+          
+          imputedList <- imputedList[indexStrat]
+          
+          
+          mergedResult <- matrix(0, ncol = length(imputedList), nrow = nrow(trueD))
+          colnames(mergedResult) <- names(imputedList)
+          rownames(mergedResult) <- rownames(trueD)
+          
+          for(i in 1:length(imputedList)){
+            #take only 1st column
+            column <- imputedList[[i]][,1]
+            mergedResult[ ,i] <- column
+            
+          }
+          
+          finalChoice <- matrix(0, ncol = 1, nrow = nrow(trueD))
+          colnames(finalChoice) <- paste("HV",missingRate, strategy[s], sep = "/")
+          rownames(finalChoice) <- rownames(mergedResult)
+          for(row in 1:nrow(mergedResult)){
+            finalChoice[row,] <- as.numeric(names(sort(table(mergedResult[row,]), decreasing = TRUE))[1])
+          }
+          
+          if(sum(is.na(missingTable)) == 0){
+            print("in")
+            error <- 0
+          }
+          
+          if(sum(is.na(missingTable)) != 0){
+            error <- imputationError(finalChoice, trueD, missingTable, colnames(finalChoice), replicate)
+            error <- error[,2]
+          }
+          
+          finaloutput[[mM]][s,r] <- error
+          
+        }
+        
+        if(r == length(replicatesInFolder)){
+          colnames(finaloutput[[mM]]) <- paste0(traitsNames[t], "/", 1:ncol(finaloutput[[mM]]))
+          rownames(finaloutput[[mM]]) <- c(paste("HV",missingRate, strategy, sep = "/"))
+        }
+      }
+    }
+    totalFinalOutput[[t]] <- finaloutput
+  }
+  names(totalFinalOutput) <- traitsNames
+  return(totalFinalOutput)
+}
+
+
+#' @title Merge hard voting outputs
+#' 
+#' @description This function outputs list containing the hard voting results from several scenarios.
+#'
+#' @usage mergeHVOutputs(dirOutputs, namesCSVfile, tree, traitsNames)
+#' 
+#'@param dirOutputs path grouping the outputs directories 
+#'@param namesCSVfile character
+#'@param tree boolean saying if tree have been provided for the missing value imputation or not
+#'@param traitsNames character or vector of character mentioning the name of the traits that we want to select
+#'@return a list with the hard voting results obtained from several scenarios
+#'
+dirOutputs <- "E:/Master_Thesis/Simulations/ARD_10T_GN"
+namesCSVfile <- "csvARD1/"
+tree <- TRUE
+#traitsNames <- colnames(get(load(paste0(pathSimulation, trueInFolder[1])))[[1]])
+traitsNames <- c("I1.0/1")
+
+HV <- mergeHVOutputs(dirOutputs, namesCSVfile, tree, traitsNames)
+
+# Apply Hard voting from the results obtained
+#############################################
+
+# source("C:\\Users\\Matthieu\\Documents\\UNIFR\\Master_thesis\\Scripts\\Phylo_ImputationLocal\\utils.R")
+# setwd("E:/Master_Thesis/Simulations/ARD_10T_GN/")
+# setwd("E:/Master_Thesis/Simulations/LargeTree_GN_new/")
+
+mergeHVOutputs <- function(dirOutputs, namesCSVfile, tree, traitsNames){
+  #load replicate and simulated data at the same time.
+  ###################################################
+  
+  dir_list <- list.dirs(dirOutputs, recursive = F)
+  dir_list <- dir_list[grep("T$", dir_list)]
+  
+  HVresults <- vector("list", length(dir_list))
+  mR <- c()
+  for (d in 1:(length(dir_list))){
+    
+    path <- dir_list[d]
+    nameDir <- str_split(path, "/", simplify = TRUE)[,5]
+    
+    pathReplicates <- paste0(path,"/Results/Replicates/")
+    pathSimulation <- paste0(path, "/FullData/")
+    pathMissing <- paste0(path, "/MissingData/")
+    pathCsv <- paste0("../../Cluster/", namesCSVfile)
+    
+    replicateFiles <- list.files(path = pathReplicates, pattern = "*.RData")
+    trueFiles <- list.files(path = pathSimulation, pattern = "*RData")
+    missingFiles <- list.files(path = pathMissing, pattern = "*RData")
+    csvFiles <- list.files(path = pathCsv, pattern = "*.csv")
+    csvName <- unique(gsub("\\.csv", "", csvFiles))
+    
+    listCSVfile <- vector("list", length(csvName))
+    names(listCSVfile) <- csvName
+    
+    for(file in 1:length(csvFiles)){
+      
+      replicatesInFolder <- loadReplicates(file, replicateFiles, pathCsv)
+      replicatesInFolder <- replicatesInFolder[str_detect(replicatesInFolder, paste0("Results", csvName[file], "_"))][1:100]
+      #get same simulated replicates than the imputed
+      rName <- str_extract(replicatesInFolder,"_R.*")
+      sName <- paste0("simulatedData",csvName[file], rName)
+      mName <- paste0("NaNData", csvName[file], rName)
+      trueInFolder <- loadReplicates(file, trueFiles, pathCsv)
+      trueInFolder <- trueInFolder[which(trueInFolder %in% sName)]
+      missingInFolder <- loadReplicates(file, missingFiles, pathCsv)
+      missingInFolder <- missingInFolder[which(missingInFolder %in% mName)]
+      missingRate <- unique(str_extract(replicatesInFolder, "0\\.\\d+"))
+      mR <- c(mR, missingRate)
+      
+      #Hard voting
+      ############
+      
+      if(is.null(traitsNames)){
+        traitsNames <- colnames(get(load(paste0(pathSimulation, trueInFolder[1])))[[1]])
+      }
+      
+      totalFinalOutput <- HVfunction(pathSimulation, pathReplicates, pathMissing, trueInFolder, replicatesInFolder
+                                    , missingInFolder, missingRate, tree, traitsNames)
+      
+      listCSVfile[[file]] <- totalFinalOutput
+      
+    }
+    HVresults[[d]] <- listCSVfile
+    
+  }
+  names(HVresults) <- unique(mR)
+  return(HVresults)
+}

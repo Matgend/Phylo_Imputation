@@ -182,7 +182,7 @@ checkConvert <- function(missingData){
 #' @param missingData array of data with missing values
 #' @param Data simulated Data object
 #' @return return a data frame with in the first column the trait names and in the second the errors
-#'
+#' 
 imputationError <- function(imputedData, trueData, missingData, imputationApproachesName, Data){
   
   #get the ordinal trait reference
@@ -190,7 +190,7 @@ imputationError <- function(imputedData, trueData, missingData, imputationApproa
   errors <- c()
   traitNames <- c() 
   for (c in 1:ncol(missingData)){
-    
+
     #know is NaNs in the columns(trait)
     NaNRowIndex <- which(is.na(missingData[,c]))
     
@@ -343,6 +343,7 @@ loadReplicates <- function(integer, filesInFolder, pathDataframe){
 #' @param pathReplicates path of the directory containing the replicates
 #' @param trait boolean, if NULL returns the error value for all the traits.
 #' @return return a .RData object with a matrix for each random approaches and partition with the overall mean error
+#' 
 overallMean <- function(namesReplicates, path, pathReplicates){
   #use the first replicate as the final output
   replicate1 <- get(load(paste0(pathReplicates, namesReplicates[1])))
@@ -375,3 +376,56 @@ overallMean <- function(namesReplicates, path, pathReplicates){
   namefile <- file.path(path, sprintf("overallError%s_%s", nameReplicate, digitReplicate))
   save(meanRep1, file = paste0(namefile, ".RData"))
 }
+
+
+#' @title Empirical data and phylogeny in R list
+#'
+#' @description This function saves an empirical dataset and a phylogeny in a list of the same structure than when the data is 
+#' simulated
+#'
+#' @usage passInList(empData, empTree = NULL)
+#'
+#' @param empData a table of class data.frame. The categorical variables must be factor and the continuous variables, numerical
+#' @param empTree a phylogenetic tree, by default empTree = NULL. 
+#' @param save path to save the data
+#' @return return a list which mimic the structure of the simulated data list. Contain at least the empirical data as data.frame 
+#' and the phylogenetic tree as phylo object
+#' 
+
+#n <- passInList(Data$FinalData, Data$TreeList$`0`)
+
+passInList <- function(empData, empTree = NULL, save = NULL){
+  
+  
+  
+  empData <- as.data.frame(empData)
+  
+  colNames <- names(empData)
+  
+  #change names traits
+  nominalNames <- names(Filter(is.factor, empData))
+  newNominalNames <- paste0("I", 1:length(nominalNames))
+  indexNominal <- which(colNames %in% nominalNames)
+  
+  names(empData)[indexNominal] <- newNominalNames
+  
+  indexConti <- grep("^I.", names(empData), invert=TRUE)
+  newContiNames <- paste0("F", 1:length(indexConti))
+  names(empData)[indexConti] <- newContiNames
+  
+  TreeList <- NULL
+  if(!is.null(empTree)){
+    TreeList <- list('0' = empTree)
+  }
+  
+  Data <- list(FinalData = empData, nativeColNames = colNames, TreeList = TreeList)
+
+  if(!is.null(save)){
+    save(Data, file = paste0(save, ".RData"))
+  }
+  return(Data)
+}
+
+
+
+

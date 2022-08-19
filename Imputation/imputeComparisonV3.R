@@ -1,6 +1,6 @@
 #import imputation functions
 source("./Imputation/imputationApproaches.R")
-source("utils.R")
+#source("utils.R")
 
 #' @title Impute matrix containing missing values
 #'
@@ -137,6 +137,7 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
         partitionName <- c(partitionName, subdatasNames[,2][p])
         missingDegree <- c(missingDegree, subdatasNames[,4][p])
         imputeApproachName <- c(imputeApproachName, imputeA)
+        names(imputedTrait$imputedData) <- names(trueData$FinalData)
         imputedData <- c(imputedData, list(imputedTrait$imputedData))
         parameters <- c(parameters, list(imputedTrait$parameters))
         imputedDataNames <- c(imputedDataNames, impName)
@@ -159,6 +160,7 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
       if(length(grep("F.", names(partition))) == ncol(partition) & "imputeContinuous" %in% ImputationApproachesNames){
         start_time <- Sys.time()
         imputedTrait <- imputeContinousTraits(partition, Data)
+        names(imputedTrait) <- names(trueData$FinalData)
         end_time <- Sys.time()
         #imputeA <- ImputationApproachesNames[2]
         imputeA <- "Rphylopars"
@@ -248,6 +250,7 @@ generateResults <- function(ImputationApproachesNames, NaNImputed, Data, varianc
           #print(MixedImputationApproaches[[method + 1]])
           start_time <- Sys.time()
           imputedTrait <- do.call(MixedImputationApproaches[[method]], MixedImputationApproaches[[method + 1]])
+          names(imputedTrait) <- names(trueData$FinalData)
           end_time <- Sys.time()
 
           if(is.null(imputedTrait)){
