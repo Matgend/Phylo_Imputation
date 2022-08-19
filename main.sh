@@ -14,7 +14,7 @@
 #for r in 0.05 0.333333 0.5;
 for r in 0.333333;
 do 
-Rscript --vanilla /home/mgendre/Cluster/scripts/main.R $r script_$SLURM_ARRAY_TASK_ID; 
+Rscript --vanilla /home/mgendre/Cluster/scripts/main.R $r script_$SLURM_ARRAY_TASK_ID simulation NULL; 
 done;
 
 

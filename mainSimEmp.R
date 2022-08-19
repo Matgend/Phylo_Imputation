@@ -163,17 +163,16 @@ for(data in 1:(length(datasetList))){
     print(nameNaNSimulation)
     #partitions <- dataPartition(simulatedData)
     
-  
     variance_fractions <- c(0)
       
     #convert csv with empirical data
   
     if(!is.null(empTree)){ #check if possible to do this
-      #empTree <- load(empTree)
+      empTree <- ape::read.nexus(empTree) #maybe has to be changed
       variance_fractions <- c(0, 0.95, 2)
     }
     #empTree <- load(empTree)
-    dataset <- passInList(datasetList[data], empTree = empTree, save = nameSimulation)
+    dataset <- passInList(datasetList[[data]], empTree = empTree, save = nameSimulation)
     
     missTraits <- ncol(dataset$FinalData)
     
