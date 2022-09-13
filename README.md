@@ -22,11 +22,11 @@ The inputs to provide to simulate data are the following:
   * model: model of evolution: for the MK model, you have to provide the type of rate matrices (ER, SYM or ARD), for continuous the model is BM1 or OU1 and "Manual" is a way to generate trait that are correlated to a specific trait being not simulated according an evolutionary model.
   * states: the number of states in the trait, for continuous trait you have to write 1. 
   * correlation: integer defining if some trait are correlated with other.
-  * uncorr_traits: number of trait which are uncorrelated among the nbr_traits feature
+  * uncorr_traits: number of traits which are uncorrelated among the nbr_traits feature
   * fraction_uncorr_traits: percentage of trait which are uncorrelated among the nbr_traits feature
   * lambda: $\lambda$ value
   * kappa: $\kappa$ value
-  * highCor: correlation rate between the manual trait and the trait of interest.
+  * highCor: correlation rate between the "manual" traits and the trait of interest.
 
 In the csv folder, you can find some example of CSV files. 
 
