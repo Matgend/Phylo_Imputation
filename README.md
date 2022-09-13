@@ -14,7 +14,7 @@ In PDIMP, there are several way to play with. You can replicate the analysis don
 
 ## Simulation
 
-The inputs to provide for the function are the following:
+The inputs to provide to simulate data are the following:
 
 * a CSV file providing all the information for the simulation of the data. The CSV file must contain 10 columns:
   * nbr_traits: number of traits
