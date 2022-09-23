@@ -34,7 +34,7 @@ In the csv folder, you can find some examples of CSV files.
 
 ## Missing data insertion
 
-In case you have an empirical data and you want to insert artificial missing data according to these fourth missing mechanisms (MCAR, MAR, MNAR and PhyloNa), you can use the function **NaNImputationEmp()**. In case you want to generate missing values according a specific missing mechanisms in this case you can use the appropriate functions **myMCAR**, **myMAR**, **myMNAR** or **PhyloNa()**.
+In case you have an empirical data and you want to insert artificial missing data according to these fourth missing mechanisms (MCAR, MAR, MNAR and PhyloNa), you can use the function **NaNImputationEmp()**. In case you want to generate missing values according a specific missing mechanisms in this case you can use the appropriate functions **myMCAR()**, **myMAR()**, **myMNAR()** or **PhyloNa()**.
 
 ## Missing values imputation
 
