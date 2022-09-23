@@ -10,7 +10,7 @@
 
 # Usage
 
-In PDIMP, there are several way to play with. You can replicate the analysis done in the (Manuscript), use the pipeline to gap missing value from an empirical data or just pick some functions for other purposes. Below, the inputs and the command to run to replicate the analysis are presented as well as the command to fill the gaps in an empirical data. 
+In Trait Data Imputation Package (TDIP), there are several way to play with. You can replicate the analysis done in the (Manuscript), use the pipeline to gap missing value from an empirical data or just pick some functions for other purposes. Below, the inputs and the command to run to replicate the analysis are presented as well as the command to fill the gaps in an empirical data. 
 
 ## Simulation
 
