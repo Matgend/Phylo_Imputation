@@ -28,10 +28,38 @@ The inputs to provide to simulate data are the following:
   * kappa: $\kappa$ value
   * highCor: correlation rate between the "manual" traits and the trait of interest.
 
-In the csv folder, you can find some example of CSV files. 
-
 * parameters to simulate the phylogenetic tree under a birth death model
 
+In the csv folder, you can find some examples of CSV files. 
+
+## Missing data insertion
+
+In case you have an empirical data and you want to insert artificial missing data according to these fourth missing mechanisms (MCAR, MAR, MNAR and PhyloNa), you can use the function **NaNImputationEmp()**. In case you want to generate missing values according a specific missing mechanisms in this case you can use the appropriate functions **myMCAR**, **myMAR**, **myMNAR** or "PhyloNa**.
+
+## Missing values imputation
+
+Through this package, this imputation approaches are provided:
+ * corHMM
+ * Rphylopars
+ * kNN
+ * missForest
+ * MICE 
+ * GAIN
+To apply the phylogenetic imputation methods **corHMM** and **Rphylopars**, a phylogenetic tree must by provided. GAIN is a deep learning method scripted in python which requires a python environment with tensorflow installed. 
+
+## Pipeline
+
+To run the same pipeline that applied for the study, you have to run the following command:
+<code> Rscript --vanilla mainNew.R 0.05 0.4 0.1 100 0.95 NP P 2-step
+ <code>
+
+ * filename: mainNew.R
+ * missing rate: 0.05
+ * birth rate : 0.4
+ * death rate: 0.1
+ * number of taxa: 100
+ * amount of variance provide by the eigenvectors: 0.95
+ * strategies: NP (no phylogeny), P (phylogeny), 2-step
 
 
 
