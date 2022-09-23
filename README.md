@@ -16,7 +16,7 @@ In PDIMP, there are several way to play with. You can replicate the analysis don
 
 The inputs to provide to simulate data are the following:
 
-* a CSV file providing all the information for the simulation of the data. The CSV file must contain 10 columns:
+* A CSV file providing all the information for the simulation of the data. The CSV file must contain 10 columns:
   * nbr_traits: number of traits
   * class: non_eq_nominal (nominal), interval, ordinal or continuous
   * model: model of evolution: for the MK model, you have to provide the type of rate matrices (ER, SYM or ARD), for continuous the model is BM1 or OU1 and "Manual" is a way to generate trait that are correlated to a specific trait being not simulated according an evolutionary model.
@@ -28,9 +28,9 @@ The inputs to provide to simulate data are the following:
   * kappa: $\kappa$ value
   * highCor: correlation rate between the "manual" traits and the trait of interest.
 
-* parameters to simulate the phylogenetic tree under a birth death model
+* Parameters to simulate the phylogenetic tree under a birth death model
 
-In the csv folder, you can find some examples of CSV files. 
+In the `csv` folder, you can find some examples of CSV files. 
 
 ## Missing data insertion
 
