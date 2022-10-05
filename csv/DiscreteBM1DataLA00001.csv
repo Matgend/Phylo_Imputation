@@ -1,0 +1,6 @@
+nbr_traits;class;model;states;correlation;uncorr_traits;fraction_uncorr_traits;lambda;kappa;highCor;manTrait
+1;non_eq_nominal;BM1;3;0;1;0;0.00001;1;0;0
+3;non_eq_nominal;ARD;3;1;3;0;1;1;0;0
+3;continuous;BM1;1;2;3;0;1;1;0;0
+3;continuous;Manual;1;0;0;0;1;1;0.8;1
+3;non_eq_nominal;Manual;3;0;0;0;1;1;0.8;1
