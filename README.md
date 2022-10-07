@@ -16,5 +16,5 @@ The script automatically installs TDIP, which requires a Python installation wit
 
 To generate the graphs, the user can run this command line 
 ```{r setup}
-Rscript --vanilla pipeline.R 0.05 TRUE 1
+Rscript --vanilla tables_plots.R
 ```
