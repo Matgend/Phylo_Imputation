@@ -13,8 +13,3 @@ The arguments:
 * `Replicate`: the index of the replicate
 
 The script automatically installs TDIP, which requires a Python installation with defined packages. Please check the repo of the R package for more information.
-
-To generate the graphs, the user can run this command line 
-```{r setup}
-Rscript --vanilla tables_plots.R
-```
