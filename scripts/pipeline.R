@@ -23,12 +23,12 @@ args = commandArgs(trailingOnly=TRUE)
 print(length(args))
 # test if there is at least one argument: if not, return an error
 if (length(args) != 3) {
-  stop("10 arguments must be supplied", call.=FALSE)
+  stop("3 arguments must be supplied", call.=FALSE)
 }
 
-missingRates <- as.numeric(args[1])
-gain <- as.logical(args[2])
-replicateNbr <- as.numeric(args[3])
+missingRates <- as.numeric(args[1]) #float
+gain <- as.logical(args[2]) # boolean
+replicateNbr <- as.numeric(args[3]) #integer
 
 #tree parameters
 tree_arg <- list(Birth = 0.4, Death = 0.1, Ntaxa = 100)
