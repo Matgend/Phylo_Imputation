@@ -85,12 +85,12 @@ input_data <- read.csv("csv/DiscreteARD1Data.csv", header = T, sep = ";")
 head(input_data)
 ```
 
-| [nbr_traits]{.smallcaps} | class          | [model]{.smallcaps} | [states]{.smallcaps} | [correlation]{.smallcaps} | [uncorr_traits]{.smallcaps} | [fraction_uncorr_traits]{.smallcaps} | [lambda]{.smallcaps} | [kappa]{.smallcaps} | [highCor]{.smallcaps} | [manTrait]{.smallcaps} |
+| nbr_traits | class          | model | states | correlation | uncorr_traits | fraction_uncorr_traits | lambda | kappa | highCor | manTrait |
 |---------|-------------|-------|-------|-----------|------------|-------------------|--------|-------|---------|----------|
-| 4                        | non_eq_nominal | ARD                 | 3                    | 0                         | 4                           | 0                                    | 1                    | 1                   | 0                     | 0                      |
-| 3                        | non_eq_nominal | Na                  | 3                    | 0                         | 0                           | 0                                    | 1                    | 1                   | 0.8                   | 1                      |
-| 3                        | continuous     | Na                  | 1                    | 0                         | 0                           | 0                                    | 1                    | 1                   | 0.8                   | 1                      |
-| 3                        | continuous     | BM1                 | 1                    | 2                         | 3                           | 0                                    | 1                    | 1                   | 0                     | 0                      |
+| 4          | non_eq_nominal | ARD   | 3      | 0           | 4             | 0                      | 1      | 1     | 0       | 0        |
+| 3          | non_eq_nominal | Na    | 3      | 0           | 0             | 0                      | 1      | 1     | 0.8     | 1        |
+| 3          | continuous     | Na    | 1      | 0           | 0             | 0                      | 1      | 1     | 0.8     | 1        |
+| 3          | continuous     | BM1   | 1      | 2           | 3             | 0                      | 1      | 1     | 0       | 0        |
 
 The function used to simulate a phylogenetic tree and traits according to the input file is `TDIP::data_simulator()`. To remember, the tree will be composed of 100 species.
 
