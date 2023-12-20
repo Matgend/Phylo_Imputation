@@ -1,6 +1,6 @@
 # Pipeline for the imputation of missing values in categorical traits
 
-This repo provides the pipeline used to generate all the simulations and imputations of the paper **"Benchmarking imputation methods for categorical biological data"**. Most of the pipeline was build using functions coming from the [R package TDIP](https://github.com/Matgend/TDIP).
+This repo provides the pipeline used to generate all the simulations and imputations of the paper **"Benchmarking imputation methods for categorical biological data"**. Most of the pipeline was build using functions coming from the [R package TDIP](https://anonymous.4open.science/r/TDIP-22D3/README.md). (Link for anonymization)
 
 ## Simulation part
 
