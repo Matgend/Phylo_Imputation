@@ -19,7 +19,7 @@ The arguments:
 
 -   `Replicate`: integer defining the replicate number
 
-![alt text](images/pipelineV2.png){width="410"}
+<img src="images/pipelineV2.png" alt="drawing" width="350"/>
 
 The script automatically installs TDIP, which requires a Python installation with defined packages. Please check the repo of the R package for more information.
 
