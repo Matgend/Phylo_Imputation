@@ -19,8 +19,9 @@ The arguments:
 
 -   `Replicate`: integer defining the replicate number
 
-<img src="images/pipelineV2.png" alt="drawing" width="350"/>
-
+<p align="center">
+  <img src="images/pipelineV2.png" alt="drawing" width="600"/>
+</p>
 The script automatically installs TDIP, which requires a Python installation with defined packages. Please check the repo of the R package for more information.
 
 In this tutorial, you will see a brief explanation of the different methods and tools used. Before the first step called "Data simulation", different variables should be defined:
@@ -123,7 +124,9 @@ The columns are named according to this notation:
 
 Here is a representation of the phylogenetic tree + the simulated traits
 
-![](images/traits_distribution.png){width="1071"}
+<p align="center">
+  <img src="images/traits_distribution.png" alt="drawing" width="800"/>
+</p>
 
 ### B) Missing value generation
 
@@ -145,8 +148,9 @@ Here is the example of the missing data distribution according to a MCAR (=missi
 ```{r}
 plot(vis_miss(NaNData$DataNaN$MCAR$`MCAR/13/0.33`))
 ```
-
-![](images/DiscreteARD1DataMCAR_MissingDataDist0.33-1.png){width="569"}
+<p align="center">
+  <img src="images/DiscreteARD1DataMCAR_MissingDataDist0.33-1.png" alt="drawing" width="700"/>
+</p>
 
 ### C) Data imputation
 
@@ -236,8 +240,9 @@ After imputation, the Hard Voting output showed that all the values were imputed
 ```{r}
 plot(vis_miss(errorList$imputedData$MCAR$`imputed_MCAR/13/0.33`$HV.ML_mixed))
 ```
-
-![](images/imputed_plot.png)
+<p align="center">
+  <img src="images/imputed_plot.png" alt="drawing" width="700"/>
+</p>
 
 ### E) Error calculation
 
